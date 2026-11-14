@@ -1,3 +1,4 @@
+<?php if (!($data['preview'] ?? false)) { require __DIR__ . '/live/overview.php'; return; } ?>
 <?php use App\UI\UI as U; $s = $data['sample']; ?>
 <?= U::heading('Station overview', 'Monday, November 2, 2026', U::badge('Open until 6:00 PM', 'green')) ?>
 <div class="mb-5 grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-4">

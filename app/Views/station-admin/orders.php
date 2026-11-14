@@ -1,3 +1,4 @@
+<?php if (!($data['preview'] ?? false)) { require __DIR__ . '/live/orders.php'; return; } ?>
 <?php use App\UI\UI as U; $s=$data['sample']; $selected=$s['orders'][0]; $queryOrder=$_GET['order']??''; $queryOrder=is_string($queryOrder)?$queryOrder:''; foreach($s['orders'] as $o) { if(($o[0])===$queryOrder) $selected=$o; } ?>
 <?php $chatCustomer = ['HMT-104'=>'maria','HMT-105'=>'luis','HMT-106'=>'ana','HMT-107'=>'lito','HMT-109'=>'emilia'][$selected[0]]; ?>
 <?= U::heading('Order queue','Manage orders for '.$info['caption'].'.',U::btn('Message customer','/station-admin/messages?customer='.$chatCustomer,'secondary','message')) ?>

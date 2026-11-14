@@ -18,7 +18,9 @@ const oldUser=uuid(900);
 // Test-only Supabase Auth stand-ins; never used by the actual application.
 await db.exec("create role anon; create role authenticated; create role service_role; create schema auth; create table auth.users(id uuid primary key,raw_user_meta_data jsonb); create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$; grant usage on schema auth to anon,authenticated; grant execute on function auth.uid() to anon,authenticated;");
 await insert('auth.users','id,raw_user_meta_data',[[oldUser,'{"role":"super_admin"}']]);
-for(const name of(await readdir('supabase/migrations')).filter(f=>f.endsWith('.sql')).sort())await db.exec(await readFile('supabase/migrations/'+name,'utf8'));
+// Direct message/receipt writes are checked against the schema before Phase 7, which moves them behind RPCs
+// (covered by supabase/tests/messages.mjs).
+for(const name of(await readdir('supabase/migrations')).filter(f=>f.endsWith('.sql')&&f<'20261120000300').sort())await db.exec(await readFile('supabase/migrations/'+name,'utf8'));
 async function n(table,where='true'){return Number((await db.query('select count(*) n from '+table+' where '+where)).rows[0].n);}
 async function client(user,role='authenticated'){await db.exec("reset role;set role "+role+";select set_config('request.jwt.claim.sub',"+q(user||'')+",false)");}
 async function owner(){await db.exec('reset role');}

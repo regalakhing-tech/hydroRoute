@@ -1,0 +1,173 @@
+<?php
+declare(strict_types=1);
+namespace App\Services;
+
+use App\Core\Session;
+use RuntimeException;
+use Throwable;
+
+/**
+ * Loads the live data a customer, station-admin or rider page shows when APP_PREVIEW=false.
+ * Views call Workspace::get() so live pages never touch the preview fixtures. A failed read
+ * becomes ['error' => ...] and the page shows an honest "could not load" state.
+ */
+final class Workspace
+{
+    private static ?self $instance = null;
+
+    public function __construct(private readonly Gateway $db, private readonly CurrentUser $current) {}
+
+    public static function boot(self $workspace): void { self::$instance = $workspace; }
+
+    public static function get(): self
+    {
+        return self::$instance ?? throw new RuntimeException('Live workspace is not configured.');
+    }
+
+    /** Runs a loader; any failure becomes an error state instead of a 500 page or sample data. */
+    public function load(callable $loader): array
+    {
+        try {
+            return $loader($this);
+        } catch (Throwable $error) {
+            error_log('Live page unavailable: ' . $error::class);
+            return ['error' => 'This page could not be loaded. Please refresh, or log in again if it keeps happening.'];
+        }
+    }
+
+    public function token(): string
+    {
+        $token = $this->current->token();
+        if ($token === null || $token === '') throw new RuntimeException('Session ended.');
+        return $token;
+    }
+
+    /** Calls a read RPC and returns its data; a non-ok envelope is an error unless $allowed lists its code. */
+    public function call(string $function, array $parameters, array $allowed = []): array
+    {
+        $result = $this->db->rpc($function, $parameters, $this->token());
+        if (($result['ok'] ?? false) !== true) {
+            if (in_array($result['error_code'] ?? null, $allowed, true)) return ['error_code' => $result['error_code']];
+            throw new RuntimeException($function . ' returned ' . (string) ($result['error_code'] ?? 'no envelope'));
+        }
+        return is_array($result['data'] ?? null) ? $result['data'] : [];
+    }
+
+    public function stationId(): string
+    {
+        $id = Session::user()['station']['id'] ?? null;
+        if (!is_string($id) || $id === '') throw new RuntimeException('No station in session.');
+        return $id;
+    }
+
+    // Customer -------------------------------------------------------------------------------------
+
+    public function checkout(array $query): array
+    {
+        $stationId = is_string($query['station'] ?? null) ? strtolower($query['station']) : '';
+        if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/D', $stationId) !== 1) return ['missing' => true];
+        $token = $this->token();
+        $station = $this->db->select('stations', ['select' => 'id,name,address,barangay,phone', 'id' => 'eq.' . $stationId], $token)[0] ?? null;
+        if ($station === null) return ['missing' => true];
+        $availability = $this->db->rpc('get_station_availability', ['p_station_id' => $stationId, 'p_requested_at' => null], $token)['data'] ?? [];
+        $products = $this->db->select('products', ['select' => 'id,name,pack_text,description,image_key,price_centavos,returnable,load_units',
+            'station_id' => 'eq.' . $stationId, 'active' => 'eq.true', 'order' => 'name.asc'], $token);
+        $addresses = $this->db->select('addresses', ['select' => 'id,label,address,latitude,longitude', 'deleted_at' => 'is.null', 'order' => 'label.asc'], $token);
+        $known = array_column($products, null, 'id');
+        $items = array_intersect_key(Checkout::items($query), $known);
+        $form = Checkout::form($query);
+        if ($form['address_id'] === '' || !in_array($form['address_id'], array_column($addresses, 'id'), true)) {
+            $pinned = array_values(array_filter($addresses, static fn (array $a): bool => $a['latitude'] !== null));
+            $form['address_id'] = (string) ($pinned[0]['id'] ?? $addresses[0]['id'] ?? '');
+        }
+        $quote = $items === [] ? null : $this->db->rpc('quote_order', ['p_station_id' => $stationId, 'p_payload' => Checkout::payload($items, $form)], $token);
+        return ['station' => $station, 'availability' => is_array($availability) ? $availability : [], 'products' => $known, 'addresses' => $addresses,
+            'items' => $items, 'form' => $form, 'quote' => $quote];
+    }
+
+    public function orders(string $group): array
+    {
+        return $this->call('list_customer_orders', ['p_filters' => ['group' => $group], 'p_cursor' => (object) []]);
+    }
+
+    public function order(mixed $id): array
+    {
+        if (!is_string($id) || preg_match('/^[0-9a-f-]{36}$/D', $id) !== 1) return ['error_code' => 'not_found'];
+        return $this->call('get_customer_order', ['p_order_id' => $id], ['not_found']);
+    }
+
+    public function notifications(?string $stationId = null): array
+    {
+        return $this->call('list_notifications', ['p_station_id' => $stationId, 'p_cursor' => (object) []]);
+    }
+
+    // Station admin --------------------------------------------------------------------------------
+
+    public function overview(): array
+    {
+        return $this->call('get_station_overview', ['p_station_id' => $this->stationId()]);
+    }
+
+    /** Changes whenever an order enters, leaves or changes in any queue list; drives page reloads. */
+    public static function fingerprint(array $queue): string
+    {
+        $rows = [];
+        foreach (['preparing', 'queue', 'ready', 'on_hold', 'scheduled', 'awaiting_completion', 'reviews'] as $list) {
+            foreach ($queue[$list] ?? [] as $row) $rows[] = $list . ':' . ($row['id'] ?? '') . ':' . ($row['version'] ?? '');
+        }
+        sort($rows);
+        return substr(hash('sha256', implode('|', $rows)), 0, 16);
+    }
+
+    public function queue(): array
+    {
+        return $this->call('get_preparation_queue', ['p_station_id' => $this->stationId()]);
+    }
+
+    public function dispatch(): array
+    {
+        $station = $this->stationId();
+        return $this->call('get_dispatch_queue', ['p_station_id' => $station]) + ['preview' => $this->call('preview_trip', ['p_station_id' => $station])];
+    }
+
+    public function stationOrder(mixed $id): array
+    {
+        if (!is_string($id) || preg_match('/^[0-9a-f-]{36}$/D', $id) !== 1) return ['error_code' => 'not_found'];
+        return $this->call('get_station_order', ['p_order_id' => $id], ['not_found']);
+    }
+
+    public function customers(string $search): array
+    {
+        return $this->call('get_station_customers', ['p_station_id' => $this->stationId(), 'p_filters' => ['search' => $search], 'p_cursor' => (object) []]);
+    }
+
+    /** A trip for its station's owner (by id) or the signed-in rider's active trip (null id). */
+    public function trip(?string $id): array
+    {
+        if ($id !== null && preg_match('/^[0-9a-f-]{36}$/D', $id) !== 1) return ['error_code' => 'not_found'];
+        return $this->call('get_trip', ['p_trip_id' => $id]);
+    }
+
+    public function report(string $kind, string $start, string $end): array
+    {
+        return $this->call('get_station_report', ['p_station_id' => $this->stationId(), 'p_report_kind' => $kind, 'p_start_date' => $start, 'p_end_date' => $end, 'p_filters' => (object) []]);
+    }
+
+    // Messages (customer: null station; station admin: own station) -----------------------------------
+
+    public function inbox(bool $station, array $filters): array
+    {
+        return $this->call('list_inbox', ['p_station_id' => $station ? $this->stationId() : null, 'p_filters' => $filters, 'p_cursor' => (object) []]);
+    }
+
+    public function thread(mixed $id): array
+    {
+        if (!is_string($id) || preg_match('/^[0-9a-f-]{36}$/D', $id) !== 1) return ['error_code' => 'not_found'];
+        return $this->call('get_messages', ['p_conversation_id' => $id, 'p_after' => (object) []]);
+    }
+
+    public function riderHistory(): array
+    {
+        return $this->call('list_rider_history', ['p_cursor' => (object) []]);
+    }
+}

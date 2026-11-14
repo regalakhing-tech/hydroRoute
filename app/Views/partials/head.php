@@ -19,5 +19,6 @@
     <script src="/assets/js/app.js" defer></script>
     <script src="/assets/js/messages.js" defer></script>
     <script src="/assets/js/fulfillment.js" defer></script>
+    <?php if (empty($data['preview']) && isset($data['screen'])): ?><script src="/assets/js/live.js" defer></script><?php endif ?>
 </head>
 

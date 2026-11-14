@@ -1,3 +1,4 @@
+<?php if (!($data['preview'] ?? false)) { require __DIR__ . '/live/trip.php'; return; } ?>
 <?php
 use App\UI\UI as U;
 $trips=$data['sample']['trips']; $queryTrip=$_GET['trip']??'08';

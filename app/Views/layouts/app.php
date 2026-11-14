@@ -35,7 +35,8 @@ require dirname(__DIR__).'/partials/head.php';
         <a href="/" class="mb-5 flex items-center px-3 py-2"><?= U::logo('h-10 [filter:drop-shadow(0_0_1px_#fff)_drop-shadow(0_0_1px_#fff)_drop-shadow(0_3px_8px_rgba(4,40,60,.45))]') ?></a>
         <?php if ($role==='station-admin'): ?><div class="mb-4 rounded-lg bg-white/10 px-3.5 py-2.5"><p class="text-sm font-semibold"><?= U::e($info['caption']) ?></p><p class="mt-1 flex items-center gap-2 text-xs text-white/75"><?= U::icon('user','size-3.5') ?>Station admin</p></div><?php endif ?>
         <nav class="no-scrollbar flex-1 space-y-1 overflow-y-auto" aria-label="<?= U::e($info['label']) ?> navigation">
-        <?php foreach($nav as $n): ?><a href="<?= U::e($n['href']) ?>" class="nav-link <?= $n['active']?'nav-active':'' ?>" <?= $n['active']?'aria-current="page"':'' ?>><?= U::icon($n['icon'],'size-5 shrink-0') ?><span><?= U::e($n['label']) ?></span></a><?php endforeach ?>
+        <?php foreach($nav as $suffix => $n): ?><a href="<?= U::e($n['href']) ?>" class="nav-link <?= $n['active']?'nav-active':'' ?>" <?= $n['active']?'aria-current="page"':'' ?>><?= U::icon($n['icon'],'size-5 shrink-0') ?><span class="flex-1"><?= U::e($n['label']) ?></span><?php if (empty($data['preview']) && in_array($suffix, ['messages', 'notifications'], true)): ?><span data-nav-count="<?= U::e($suffix) ?>" hidden class="rounded-full bg-white px-2 text-xs font-bold text-water"></span><?php endif ?></a><?php endforeach ?>
+        <?php if (empty($data['preview']) && in_array($role, ['customer', 'station-admin'], true)): ?><span data-nav-counts="/<?= U::e($role) ?>/navigation-counts" hidden></span><?php endif ?>
         </nav>
         <div class="mt-3 border-t border-white/20 px-3 pt-3">
             <div class="flex items-center gap-3"><?= U::avatar($info['initials']) ?><div class="min-w-0"><p class="truncate text-sm font-semibold"><?= U::e($info['name']) ?></p><p class="text-xs text-white/75"><?= U::e($info['label']) ?></p></div></div>
@@ -63,7 +64,7 @@ require dirname(__DIR__).'/partials/head.php';
         <?php elseif (!$data['preview'] && $role === 'station-admin' && !empty($data['setup_error'])): ?>
         <section class="panel p-5" role="status"><h1 class="section-title">Station workspace unavailable</h1><p class="mt-2 text-sm text-muted"><?= U::e($data['setup_error']) ?></p><a class="btn-secondary mt-4" href="/login/station-admin">Open login</a></section>
         <?php else: require dirname(__DIR__).'/'.$role.'/'.$data['screen'].'.php'; endif ?>
-        <?php if ($data['screen'] !== 'messages'): ?><footer class="mt-8 flex flex-wrap items-center justify-between gap-2 border-t border-line py-4 text-[11px] text-muted"><span>HydroRoute · Hamtic, Antique</span><?php if (!empty($data['preview'])): ?><span>Sample data for UI preview</span><?php elseif (empty($data['needs_station_selection']) && empty($data['setup_error']) && (empty($data['setup']) || !in_array($data['screen'], ['settings-profile','settings-service-areas','settings-order-rules','products','schedules'], true))): ?><span>Orders and trips show sample data until ordering is connected</span><?php endif ?></footer><?php endif ?>
+        <?php if ($data['screen'] !== 'messages'): ?><footer class="mt-8 flex flex-wrap items-center justify-between gap-2 border-t border-line py-4 text-[11px] text-muted"><span>HydroRoute · Hamtic, Antique</span><?= !empty($data['preview']) ? '<span>Sample data for UI preview</span>' : '' ?></footer><?php endif ?>
     </main>
 </div>
 <?php $tabs = $isRider ? array_values($nav) : array_slice(array_values($nav), 0, 4); $moreActive = !array_filter($tabs, static fn($n) => $n['active']); ?>

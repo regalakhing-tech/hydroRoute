@@ -1,3 +1,4 @@
+<?php if (!($data['preview'] ?? false)) { require __DIR__ . '/live/checkout.php'; return; } ?>
 <?php use App\UI\UI as U;
 $stationId = !isset($_GET['station']) ? 'guintas' : (is_string($_GET['station']) ? $_GET['station'] : '');
 $station = null;

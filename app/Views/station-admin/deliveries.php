@@ -1,3 +1,4 @@
+<?php if (!($data['preview'] ?? false)) { require __DIR__ . '/live/deliveries.php'; return; } ?>
 <?php use App\UI\UI as U; $s=$data['sample']; $ready=array_values(array_filter($s['orders'],fn($o)=>$o[7]==='delivery' && $o[5]==='Ready')); $selected=array_values(array_filter($ready,fn($o)=>$o[2]==='Guintas')); $selectedLoad=array_sum(array_column($selected,3)); $queryTab=$_GET['tab']??'active'; $tab=is_string($queryTab) && in_array($queryTab,['active','ready','completed'],true)?$queryTab:'active'; ?>
 <?= U::heading('Deliveries','Build and monitor your station’s delivery trips.',U::btn('Build a trip','/station-admin/deliveries#dispatch','primary','plus')) ?>
 <?php $active = count(array_filter($s['trips'], fn($t) => $t['status'] !== 'Completed')); $done = count($s['trips']) - $active; $free = count(array_filter($s['drivers'], fn($d) => $d[3] === 'Available')); ?>

@@ -127,3 +127,15 @@ final class FakeGateway implements Gateway
         return array_values(array_filter($this->calls, static fn (array $call): bool => $call[0] === $kind && $call[1] === $name));
     }
 }
+
+/** Minimal checked station context so live station-admin pages render instead of the setup-error panel. */
+function fakeStationContext(FakeGateway $db, string $stationId, string $name = 'Live Station'): App\Services\StationSetup
+{
+    $db->results['get_operation_context'] = ['ok' => true, 'error_code' => null, 'field_errors' => [], 'data' => [
+        'actor' => ['id' => 'u-1', 'roles' => ['customer', 'station_admin']],
+        'memberships' => [['station_id' => $stationId, 'station_name' => $name, 'slug' => 'live', 'role' => 'station_admin']],
+        'station' => ['id' => $stationId, 'name' => $name, 'slug' => 'live'],
+        'settings' => [], 'barangays' => [], 'service_areas' => [], 'products' => [], 'opening_hours' => [], 'closures' => [], 'availability' => [], 'fee_rules' => [],
+    ]];
+    return new App\Services\StationSetup($db);
+}

@@ -1,3 +1,4 @@
+<?php if (!($data['preview'] ?? false)) { require __DIR__ . '/live/tracking.php'; return; } ?>
 <?php use App\UI\UI as U;
 $orderId = !isset($_GET['order']) ? 'HMT-104' : (is_string($_GET['order']) ? $_GET['order'] : '');
 $order = null;

@@ -1,3 +1,4 @@
+<?php if (!($data['preview'] ?? false)) { require __DIR__ . '/live/problem.php'; return; } ?>
 <?php use App\UI\UI as U; $s=$data['sample']; ?>
 <div class="mx-auto max-w-3xl space-y-4"><a href="/rider" class="inline-flex items-center gap-1.5 text-sm font-semibold text-water hover:underline"><?= U::icon('arrow-left','size-4') ?>Back to my trip</a><?= U::heading('Report a problem') ?>
 <section class="flex items-center gap-3 rounded-xl bg-foam p-3.5"><span class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-water text-white"><?= U::icon('user','size-5') ?></span><div class="min-w-0"><p class="text-xs font-semibold text-water"><?= U::e($s['trip']) ?>, current delivery</p><h2 class="truncate font-bold"><?= U::e($s['stop']['name']) ?></h2><p class="truncate text-sm text-muted"><?= U::e($s['stop']['address']) ?></p></div></section>

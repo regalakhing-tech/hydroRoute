@@ -2,9 +2,9 @@
 
 Scope follows the [requested implementation prompt](2026-11-14-build-customer-and-station-owner.md), limited by the user's 15 November instruction to finish through Phase 3 only. Updated 15 November 2026, Asia/Manila.
 
-**Current checkpoint — Phase 2 local implementation and review are ready for the user-run SQL Editor migration.** The user's "continue all" authorized the [design and its recommended decisions](2026-11-14-customer-station-owner-design.md). The separate per-migration SQL Editor application/confirmation requirement remains in force. Follow the [migration checkpoint](2026-11-15-phase-2-migration-checkpoint.md) before continuing Phase 3.
+**Current checkpoint — hosted migrations verified, release tests passed, GitHub push and production deployment in progress.** The user's latest instruction authorizes publishing the current committed branch, which includes the merged ordering, operations, messaging and reports work. Read-only Supabase checks confirmed every public RPC named in the local migrations, the exact Phase 2 installation checksum, all 47 Hamtic barangays, station configuration for every approved station, and RLS on every public table.
 
-The latest scope ends after Phase 3 customer profiles, addresses, catalogue, delivery quote and real overview projection. Phases 4–9 remain outside the current authorization. Each phase still requires the user-run migration checkpoint from section 6 of the supplied prompt.
+The earlier implementation scope ended after Phase 3. The latest publishing request applies to the existing merged branch. Required database migrations are present in the linked hosted project. Supabase Cron still needs dashboard setup before automatic scheduled-order processing and cleanup can run.
 
 ### Phase 2 local preparation, 15 November
 
@@ -16,7 +16,7 @@ Closure modes use temporary closure, maintenance and no operations. Each blocks 
 
 The read-only hosted preflight found three approved stations, valid legacy hours and zero duplicate default catalogue names. Two global owner accounts have zero station memberships and need explicit trusted assignment. Browser screenshot QA is pending because the automation tool could not verify Chrome's current URL. Independent-session concurrency remains pending.
 
-The SQL Editor handoff was sent to the user. Phase 3 implementation awaits migration confirmation and read-only hosted verification.
+Hosted migration verification is now complete. Fresh merged release checks passed 533 SQL/RLS assertions, 715 PHP checks, 158 PHP syntax checks, 36 setup DOM groups, the 47-page preview suite with 281 DOM assertions, and the existing messaging, fulfillment and pricing checks. Production HTTP and authenticated smoke tests follow deployment.
 
 ## Phase status
 
@@ -25,8 +25,8 @@ The SQL Editor handoff was sent to the user. Phase 3 implementation awaits migra
 - [x] Phase 1: run and record the current PHP, database and preview baseline.
 - [x] Phase 1: review the proposed design; resolve the pickup-empties reconciliation and newly created operational-rider synchronization gaps. Focused re-review found no remaining Critical or Important issues in those changed sections.
 - [x] Phase 1 review gate: user approved design/decisions with "continue all"; approval recorded. Phase documents are being versioned separately from the preserved local baseline.
-- [x] Phase 2 (built and committed; migration not yet run on Supabase): role-specific station authorization and owner profile/pin/service areas/products/rules/schedules; default catalogue/settings initialization.
-- [x] Phase 3 (built and committed; migration not yet run on Supabase): customer profile/preferences/password/logout-all, owned pinned addresses/defaults, live catalogue and delivery quote.
+- [x] Phase 2 (built, committed and hosted migration verified): role-specific station authorization and owner profile/pin/service areas/products/rules/schedules; default catalogue/settings initialization.
+- [x] Phase 3 (built, committed and hosted migration verified): customer profile/preferences/password/logout-all, owned pinned addresses/defaults, live catalogue and delivery quote.
 - [x] Phase 4 (built on feat/orders-dispatch-messaging and merged; see progress-phases-4-9.md): atomic order/duplicate/schedule/cancel/track, real dashboard/history/notifications and polling.
 - [x] Phase 5 (built on feat/orders-dispatch-messaging and merged; see progress-phases-4-9.md): owner queues/preparation/ready/reviews/pickup/cash/customers/dispatch/trip views.
 - [x] Phase 6 (built on feat/orders-dispatch-messaging and merged; see progress-phases-4-9.md): assigned rider trip/location/arrival/result/cash/empties/return/history.

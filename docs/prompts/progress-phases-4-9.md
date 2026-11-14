@@ -111,3 +111,28 @@ Tests:
 - `php tests/messages.php`: 15 messaging checks passed.
 - Preview messaging (`messages-dom`, `messages-regressions`) still passes.
 - `supabase/tests/security.mjs` asserts that customers can insert messages directly, which is now intentionally denied. Update it after merging; it already fails on the Phase 2 product seeding.
+
+## Phase 8: reports and station jobs — built locally, migration not yet applied
+
+Migration: `20261120000400_reports_jobs.sql`. Cron setup: `docs/station-jobs-cron.sql`, run separately after enabling `pg_cron`.
+
+What works once the migration is applied:
+
+- **Reports**, for the owner's station only:
+  - The **sales** report keeps four measures separate: completion-date order totals, collection-date cash, verification-date cash and delivery fees. It also shows the unverified cash outstanding and a daily table.
+  - The **orders** report breaks orders down by placed date, status, fulfillment, product, barangay and day, and lists cancellation reasons.
+  - The **deliveries** report shows trips, stops, delivered and failed counts, failure reasons, planned and GPS distance, average delivery time, a table by rider and a daily table.
+  - Every report has a date range filter and states its date basis. CSV export uses the same scoped RPC and protects formula cells. Print uses the existing print styles.
+  - Other stations and Super Admin are refused.
+- **Station job:** `run_station_jobs(station)` and `run_all_station_jobs()` are granted to the service role only. Each run covers one station in one minute slot and does nothing if repeated in the same slot. It:
+  - releases due scheduled orders while the station is open, logged with `system_job = 'release_scheduled'` and no fake user;
+  - raises overdue alerts;
+  - expires unanswered reservations and notifies the customer;
+  - deletes rider positions older than 30 days and clears arrival coordinates on old attempts;
+  - records each run in `private.station_job_runs`.
+  - Priority is calculated live on every queue read, so no separate five-minute job is needed.
+
+Tests:
+
+- `node supabase/tests/reports.mjs`: 24 report and job checks passed.
+- `php tests/reports.php`: 10 report checks passed.

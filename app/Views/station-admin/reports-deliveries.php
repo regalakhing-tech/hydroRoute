@@ -1,3 +1,4 @@
+<?php if (!($data['preview'] ?? false)) { require __DIR__ . '/live/reports.php'; return; } ?>
 <?php use App\UI\UI as U; ?>
 <?= U::heading('Station reports',''.$info['caption'].' only · November 1–2, 2026',U::btn('Export CSV','','secondary','download',['data-export'=>'station-delivery-report'])) ?>
 <?= U::tabs(['/station-admin/reports'=>'Sales','/station-admin/reports/orders'=>'Orders','/station-admin/reports/deliveries'=>'Deliveries'],'/station-admin/reports/deliveries') ?>

@@ -25,7 +25,7 @@ export async function world() {
         try { await db.exec(await readFile('supabase/migrations/' + f, 'utf8')); }
         catch (e) { console.error(f, e.message, e.position, e.where); throw e; }
     }
-    t.owner = () => db.exec('reset role');
+    t.owner = () => db.exec("reset role; select set_config('request.jwt.claim.sub', '', false)");
     t.as = async user => db.exec("reset role; set role authenticated; select set_config('request.jwt.claim.sub', '" + user + "', false)");
     t.sql = async (sql, params = []) => (await db.query(sql, params)).rows;
     // Calls an RPC as a user and returns its JSON envelope.

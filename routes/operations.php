@@ -5,6 +5,7 @@ declare(strict_types=1);
 
 use App\Controllers\MessageController;
 use App\Controllers\OrderController;
+use App\Controllers\ReportController;
 use App\Controllers\RiderController;
 use App\Controllers\StationOpsController;
 use App\Core\Router;
@@ -56,4 +57,7 @@ return static function (Router $router, Gateway $db, CurrentUser $current): void
     $router->post('/customer/reservations', [$messages, 'requestReservation']);
     $router->post('/customer/reservations/cancel', [$messages, 'cancelReservation']);
     $router->post('/station-admin/reservations/respond', [$messages, 'respondReservation']);
+
+    $reports = new ReportController($db, $current);
+    $router->get('/station-admin/reports/export', [$reports, 'export']);
 };

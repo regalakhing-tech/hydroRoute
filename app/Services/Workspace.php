@@ -148,6 +148,11 @@ final class Workspace
         return $this->call('get_trip', ['p_trip_id' => $id]);
     }
 
+    public function report(string $kind, string $start, string $end): array
+    {
+        return $this->call('get_station_report', ['p_station_id' => $this->stationId(), 'p_report_kind' => $kind, 'p_start_date' => $start, 'p_end_date' => $end, 'p_filters' => (object) []]);
+    }
+
     // Messages (customer: null station; station admin: own station) -----------------------------------
 
     public function inbox(bool $station, array $filters): array

@@ -90,6 +90,8 @@
         schedule();
     });
 
+    $$('[data-print]').forEach(b => b.addEventListener('click', () => window.print()));
+
     // Unread badges in the navigation, refreshed every 60 seconds.
     const counts = $('[data-nav-counts]');
     if (counts) {

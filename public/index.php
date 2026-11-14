@@ -50,7 +50,8 @@ try {
     $response->send($method === 'HEAD');
 } catch (Throwable $exception) {
     // Do not print exception messages that could contain configuration or data.
-    error_log('Application request failed: ' . $exception::class);
+    error_log('Application request failed: ' . $exception::class . ' at '
+        . basename($exception->getFile()) . ':' . $exception->getLine());
     http_response_code(500);
     header('Content-Type: application/json; charset=utf-8');
     header('Cache-Control: no-store');

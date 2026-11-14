@@ -2,21 +2,25 @@
 
 Scope follows the [requested implementation prompt](2026-11-14-build-customer-and-station-owner.md), limited by the user's 15 November instruction to finish through Phase 3 only. Updated 15 November 2026, Asia/Manila.
 
-**Current checkpoint — hosted migrations verified, release tests passed, GitHub push and production deployment in progress.** The user's latest instruction authorizes publishing the current committed branch, which includes the merged ordering, operations, messaging and reports work. Read-only Supabase checks confirmed every public RPC named in the local migrations, the exact Phase 2 installation checksum, all 47 Hamtic barangays, station configuration for every approved station, and RLS on every public table.
+**Current checkpoint — GitHub main published, Vercel production ready, production smoke checks passed.** The user's latest instruction authorizes publishing the current committed branch, which includes the merged ordering, operations, messaging and reports work. Read-only Supabase checks confirmed every public RPC named in the local migrations, the exact Phase 2 installation checksum, all 47 Hamtic barangays, station configuration for every approved station, and RLS on every public table.
 
 The earlier implementation scope ended after Phase 3. The latest publishing request applies to the existing merged branch. Required database migrations are present in the linked hosted project. Supabase Cron still needs dashboard setup before automatic scheduled-order processing and cleanup can run.
 
 ### Phase 2 local preparation, 15 November
 
-Owner forms, checked PHP service/controller, routes, explicit station selection, context loading, credential authorization guard and public availability integration are implemented locally. The migration and independent reviews are complete locally. SQL suites passed 155 station setup, 107 security and 37 registry assertions. PHP suites passed 151 station setup, 63 registry and 15 integration assertions, alongside the existing auth/session/catalogue checks. Focused DOM checks passed 36 groups, and preview checks passed 47 pages with 281 assertions. Hosted installation and acceptance remain pending.
+Owner forms, checked PHP service/controller, routes, explicit station selection, context loading, credential authorization guard and public availability integration are implemented. SQL suites passed 155 station setup, 107 security and 37 registry assertions. PHP suites passed 151 station setup, 63 registry and 15 integration assertions, alongside the existing auth/session/catalogue checks. Focused DOM checks passed 36 groups, and preview checks passed 47 pages with 281 assertions. Hosted schema installation is verified.
 
-The feature branch is `feat/live-station-workflows`. Existing shared session/WebP work was preserved in commit `b85c9b3`, followed by approved design documents in `68f7e9a`. Phase 2 changes have not been pushed or deployed.
+The feature branch is `feat/live-station-workflows`. Existing shared session/WebP work was preserved in commit `b85c9b3`, followed by approved design documents in `68f7e9a`. GitHub main and the feature branch are published. Production is available at `https://hydroroute-seven.vercel.app`.
 
 Closure modes use temporary closure, maintenance and no operations. Each blocks service within its interval. Finite closures allow valid later service windows, while indefinite manual closures block new bookings until reopening.
 
 The read-only hosted preflight found three approved stations, valid legacy hours and zero duplicate default catalogue names. Two global owner accounts have zero station memberships and need explicit trusted assignment. Browser screenshot QA is pending because the automation tool could not verify Chrome's current URL. Independent-session concurrency remains pending.
 
-Hosted migration verification is now complete. Fresh merged release checks passed 533 SQL/RLS assertions, 715 PHP checks, 158 PHP syntax checks, 36 setup DOM groups, the 47-page preview suite with 281 DOM assertions, and the existing messaging, fulfillment and pricing checks. Production HTTP and authenticated smoke tests follow deployment.
+Hosted migration verification is complete. Fresh merged release checks passed 533 SQL/RLS assertions, 715 PHP checks, 158 PHP syntax checks, 36 setup DOM groups, the 47-page preview suite with 281 DOM assertions, and the existing messaging, fulfillment and pricing checks.
+
+Production checks passed 28 route, asset, access and private-file checks, plus 9 customer login/session/account/address/logout checks. Temporary smoke accounts were removed. These tests exercise customer reads and authentication. Order, dispatch and chat behavior was verified in the local SQL/PHP suites.
+
+Release testing exposed an unanchored `vendor` pattern in `.vercelignore` that excluded public Leaflet and SweetAlert assets. Anchoring it to `/vendor` restored those deployed assets. The production regression suite now checks every Leaflet marker, both vendor libraries, and the live-page JavaScript.
 
 ## Phase status
 

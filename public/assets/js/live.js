@@ -104,6 +104,45 @@
         tick();
     }
 
+    // Open conversation: fetch new messages every 10 s, append text safely, and acknowledge what was seen.
+    const log = $('[data-chat-log]');
+    if (log) {
+        $$('[data-no-js-read]').forEach(f => { f.hidden = true; });
+        log.scrollTop = log.scrollHeight;
+        const notice = $('[data-chat-notice]');
+        const acknowledge = async id => {
+            if (!id) return;
+            const data = new FormData(); data.set('_token', log.dataset.token); data.set('conversation_id', log.dataset.conversation); data.set('message_id', id);
+            try { await fetch(log.dataset.readUrl, {method: 'POST', body: data, credentials: 'same-origin', headers: {Accept: 'application/json'}}); } catch { /* next poll retries */ }
+        };
+        if (log.dataset.unread === '1' && !document.hidden) acknowledge(log.dataset.afterId);
+        let failures = 0;
+        const poll = async () => {
+            if (!document.hidden && navigator.onLine) {
+                try {
+                    const params = new URLSearchParams({after_id: log.dataset.afterId || '', after_created_at: log.dataset.afterCreated || ''});
+                    const body = await getJson(log.dataset.threadUrl + '&' + params);
+                    failures = 0;
+                    let others = null;
+                    for (const m of body.ok ? body.data.messages : []) {
+                        log.dataset.afterId = m.id; log.dataset.afterCreated = m.created_at;
+                        const empty = $('[data-chat-empty]', log); if (empty) empty.hidden = true;
+                        if (m.kind !== 'text') { notice.textContent = 'There is a reservation update. Refresh to see it.'; notice.classList.remove('hidden'); continue; }
+                        const row = document.createElement('div'); row.className = 'flex' + (m.mine ? ' justify-end' : '');
+                        const bubble = document.createElement('div'); bubble.className = 'max-w-[80%] rounded-2xl px-4 py-2.5 ' + (m.mine ? 'bg-water text-white' : 'bg-mist');
+                        const text = document.createElement('p'); text.className = 'whitespace-pre-wrap break-words text-sm'; text.textContent = m.body;
+                        const meta = document.createElement('p'); meta.className = 'mt-1 text-[11px] ' + (m.mine ? 'text-white/80' : 'text-muted'); meta.textContent = m.time + (m.order_no ? ' · ' + m.order_no : '');
+                        bubble.append(text, meta); row.append(bubble); log.append(row);
+                        if (!m.mine) others = m.id;
+                    }
+                    if (others) { log.scrollTop = log.scrollHeight; acknowledge(others); }
+                } catch { failures++; }
+            }
+            setTimeout(poll, 10000 * Math.min(6, 1 + failures));
+        };
+        setTimeout(poll, 10000);
+    }
+
     // Rider: share position during an active trip only (about every 30 s or 50 m), and fill arrival forms.
     const tracker = $('[data-rider-track]');
     if (tracker && 'geolocation' in navigator) {

@@ -3,6 +3,7 @@
 // Kept apart from routes/web.php so the station-setup work and this work merge without conflicts.
 declare(strict_types=1);
 
+use App\Controllers\MessageController;
 use App\Controllers\OrderController;
 use App\Controllers\RiderController;
 use App\Controllers\StationOpsController;
@@ -44,4 +45,15 @@ return static function (Router $router, Gateway $db, CurrentUser $current): void
     $router->post('/rider/trips/result', [$rider, 'deliver']);
     $router->post('/rider/trips/close', [$rider, 'closeTrip']);
     $router->post('/rider/trips/location', [$rider, 'location']);
+
+    $messages = new MessageController($db, $current);
+    $router->post('/customer/messages/start', [$messages, 'start']);
+    foreach (['customer', 'station-admin'] as $role) {
+        $router->post('/' . $role . '/messages/send', static fn () => $messages->send($role));
+        $router->post('/' . $role . '/messages/read', static fn () => $messages->read($role));
+        $router->get('/' . $role . '/messages/thread', static fn () => $messages->thread($role));
+    }
+    $router->post('/customer/reservations', [$messages, 'requestReservation']);
+    $router->post('/customer/reservations/cancel', [$messages, 'cancelReservation']);
+    $router->post('/station-admin/reservations/respond', [$messages, 'respondReservation']);
 };

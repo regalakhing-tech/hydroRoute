@@ -77,3 +77,37 @@ Tests:
 - `php tests/operations.php`: 32 operations checks passed.
 
 `app/Views/layouts/app.php` no longer shows "Orders and trips show sample data until ordering is connected" on live pages. If the station-setup branch changes the same footer line, merge by dropping that sentence.
+
+## Phase 7: messages and reservations — built locally, migration not yet applied
+
+Migration: `20261120000300_messages_reservations.sql`. It extends `conversations`, `messages` and `read_receipts` without breaking existing rows, and backfills message scope columns and `last_message_at`. It adds `reservations`, `reservation_items` and `private.message_rate_limits`.
+
+Two changes affect existing behaviour:
+
+- Clients can no longer insert or update messages and read receipts directly; every write goes through the RPCs.
+- The old `stamp_receipt` trigger is dropped, so a read receipt advances only to a message the reader actually saw.
+
+`private.insert_order` was extracted in the Phase 4 migration, which has not been applied yet. Submission and reservation acceptance share it.
+
+What works once the migration is applied:
+
+- **Chat:** a customer opens a conversation with a station, from a station link or `/customer/messages?station=<id>`. Customers and that station's admins can then:
+  - send plain-text messages of up to 2,000 characters, with a topic and an optional link to one of that customer's orders at the station. A retry with the same request key sends once, and each sender is limited to 20 messages per minute;
+  - search the inbox and filter it by topic or unread;
+  - see unread counts;
+  - see new messages within about 10 seconds, without the page reloading. Bodies are inserted with `textContent`.
+- **Read state:** a message is marked read only when the reader has seen it, by a JavaScript POST or a "Mark as read" button. Viewing the page with GET never changes it.
+- **Closed station:** the customer sees the closed notice and the next opening time in the conversation.
+- **Navigation badges:** unread messages and notifications show in the side navigation, refreshed every 60 seconds.
+- **Reservations:**
+  - The customer fills in a form inside the chat: date and time up to 90 days ahead, delivery or pickup, products and quantities, address and note. It appears as a reservation card.
+  - The owner accepts, or declines with a reason. Accepting reprices today's products and rechecks the normal booking window, hours, limits and distance (D6). It then creates one `scheduled` order, a system card and notices in one transaction.
+  - The customer can cancel while the request is `requested`. Double acceptance and stale versions are refused.
+- **Access:** riders and Super Admin are denied in SQL (`private.chat_role`) and in PHP.
+
+Tests:
+
+- `node supabase/tests/messages.mjs`: 47 messaging checks passed.
+- `php tests/messages.php`: 15 messaging checks passed.
+- Preview messaging (`messages-dom`, `messages-regressions`) still passes.
+- `supabase/tests/security.mjs` asserts that customers can insert messages directly, which is now intentionally denied. Update it after merging; it already fails on the Phase 2 product seeding.

@@ -148,6 +148,19 @@ final class Workspace
         return $this->call('get_trip', ['p_trip_id' => $id]);
     }
 
+    // Messages (customer: null station; station admin: own station) -----------------------------------
+
+    public function inbox(bool $station, array $filters): array
+    {
+        return $this->call('list_inbox', ['p_station_id' => $station ? $this->stationId() : null, 'p_filters' => $filters, 'p_cursor' => (object) []]);
+    }
+
+    public function thread(mixed $id): array
+    {
+        if (!is_string($id) || preg_match('/^[0-9a-f-]{36}$/D', $id) !== 1) return ['error_code' => 'not_found'];
+        return $this->call('get_messages', ['p_conversation_id' => $id, 'p_after' => (object) []]);
+    }
+
     public function riderHistory(): array
     {
         return $this->call('list_rider_history', ['p_cursor' => (object) []]);

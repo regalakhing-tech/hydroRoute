@@ -325,6 +325,32 @@ begin
  return private.envelope(terms || jsonb_build_object('station_id', p_station_id, 'address_id', p_address_id));
 end $$;
 
+-- Inserts one priced order (data from private.price_order) with items and its first status log. Callers lock and notify.
+create or replace function private.insert_order(sid uuid, cid uuid, d jsonb, st text, key uuid, dup uuid, fp text, reason text) returns jsonb language plpgsql security definer set search_path = '' as $$
+declare dl jsonb := d->'delivery'; n bigint; no text; oid uuid; v int;
+begin
+ insert into private.station_counters as c(station_id, next_order_number) values (sid, 2)
+ on conflict (station_id) do update set next_order_number = c.next_order_number + 1 returning c.next_order_number - 1 into n;
+ no := 'HMT-' || lpad(n::text, 4, '0');
+ insert into public.orders(station_id, customer_id, fulfillment, address_id, status, order_no, request_key, contract_version, schedule_mode, requested_at,
+  service_date, queued_at, total_units, load_units, expected_empties, note, contact_name, contact_phone, address_label, address_text, address_landmark,
+  address_barangay_id, address_barangay, address_latitude, address_longitude, station_latitude, station_longitude, subtotal_centavos, distance_km,
+  distance_display, quoted_fee_centavos, fee_version, total_centavos, duplicate_of, fingerprint)
+ values (sid, cid, d->>'fulfillment', (dl->>'address_id')::uuid, st, no, key, 2, d->>'schedule', (d->>'requested_at')::timestamptz,
+  (d->>'service_date')::date, case when st = 'confirmed' then now() end, (d->>'total_units')::int, (d->>'load_units')::int, (d->>'expected_empties')::int,
+  d->>'note', d->>'contact_name', d->>'contact_phone', dl->>'label', dl->>'address', dl->>'landmark', (dl->>'barangay_id')::uuid, dl->>'barangay',
+  (dl->>'latitude')::numeric, (dl->>'longitude')::numeric, (dl->>'station_latitude')::numeric, (dl->>'station_longitude')::numeric,
+  (d->>'subtotal_centavos')::bigint, (dl->>'distance_km')::numeric, (dl->>'distance_display')::numeric, (d->>'fee_centavos')::int,
+  (dl->>'fee_version')::int, (d->>'total_centavos')::bigint, dup, fp)
+ returning id, version into oid, v;
+ insert into public.order_items(order_id, station_id, product_id, product_name, quantity, unit_price_centavos, pack_text, returnable, load_units)
+ select oid, sid, (i->>'product_id')::uuid, i->>'name', (i->>'quantity')::int, (i->>'unit_price_centavos')::int,
+  coalesce(i->>'pack_text', ''), (i->>'returnable')::boolean, (i->>'load_units')::int from jsonb_array_elements(d->'items') i;
+ insert into public.order_status_logs(station_id, order_id, from_status, to_status, actor_id, reason, order_version, request_key)
+ values (sid, oid, null, st, auth.uid(), reason, v, key);
+ return jsonb_build_object('order_id', oid, 'order_no', no, 'version', v);
+end $$;
+
 create or replace function public.submit_order(p_station_id uuid, p_payload jsonb, p_request_key uuid) returns jsonb language plpgsql security definer set search_path = '' as $$
 declare r jsonb; q jsonb; d jsonb; dl jsonb; fp text; orig public.orders; st text; n bigint; no text; oid uuid; v int; dup_minutes int;
 begin
@@ -345,25 +371,8 @@ begin
   and status in ('on_hold','scheduled','confirmed','preparing','ready','out_for_delivery') and created_at >= now() - make_interval(mins => dup_minutes)
  order by created_at limit 1;
  st := case when orig.id is not null then 'on_hold' else d->>'initial_status' end;
- insert into private.station_counters as c(station_id, next_order_number) values (p_station_id, 2)
- on conflict (station_id) do update set next_order_number = c.next_order_number + 1 returning c.next_order_number - 1 into n;
- no := 'HMT-' || lpad(n::text, 4, '0');
- insert into public.orders(station_id, customer_id, fulfillment, address_id, status, order_no, request_key, contract_version, schedule_mode, requested_at,
-  service_date, queued_at, total_units, load_units, expected_empties, note, contact_name, contact_phone, address_label, address_text, address_landmark,
-  address_barangay_id, address_barangay, address_latitude, address_longitude, station_latitude, station_longitude, subtotal_centavos, distance_km,
-  distance_display, quoted_fee_centavos, fee_version, total_centavos, duplicate_of, fingerprint)
- values (p_station_id, auth.uid(), d->>'fulfillment', (dl->>'address_id')::uuid, st, no, p_request_key, 2, d->>'schedule', (d->>'requested_at')::timestamptz,
-  (d->>'service_date')::date, case when st = 'confirmed' then now() end, (d->>'total_units')::int, (d->>'load_units')::int, (d->>'expected_empties')::int,
-  d->>'note', d->>'contact_name', d->>'contact_phone', dl->>'label', dl->>'address', dl->>'landmark', (dl->>'barangay_id')::uuid, dl->>'barangay',
-  (dl->>'latitude')::numeric, (dl->>'longitude')::numeric, (dl->>'station_latitude')::numeric, (dl->>'station_longitude')::numeric,
-  (d->>'subtotal_centavos')::bigint, (dl->>'distance_km')::numeric, (dl->>'distance_display')::numeric, (d->>'fee_centavos')::int,
-  (dl->>'fee_version')::int, (d->>'total_centavos')::bigint, orig.id, fp)
- returning id, version into oid, v;
- insert into public.order_items(order_id, station_id, product_id, product_name, quantity, unit_price_centavos, pack_text, returnable, load_units)
- select oid, p_station_id, (i->>'product_id')::uuid, i->>'name', (i->>'quantity')::int, (i->>'unit_price_centavos')::int,
-  coalesce(i->>'pack_text', ''), (i->>'returnable')::boolean, (i->>'load_units')::int from jsonb_array_elements(d->'items') i;
- insert into public.order_status_logs(station_id, order_id, from_status, to_status, actor_id, reason, order_version, request_key)
- values (p_station_id, oid, null, st, auth.uid(), case when st = 'on_hold' then 'Possible repeat of ' || orig.order_no end, v, p_request_key);
+ r := private.insert_order(p_station_id, auth.uid(), d, st, p_request_key, orig.id, fp, case when st = 'on_hold' then 'Possible repeat of ' || orig.order_no end);
+ oid := (r->>'order_id')::uuid; no := r->>'order_no'; v := (r->>'version')::int;
  if st = 'on_hold' then
   perform private.notify(p_station_id, auth.uid(), 'order:' || oid || ':' || v, 'order_on_hold', oid, 'Please confirm order ' || no,
    'It matches order ' || orig.order_no || '. Confirm it if you want another, or cancel it.');
@@ -547,7 +556,7 @@ end $$;
 
 do $$declare f record; begin
  for f in select p.oid::regprocedure sig from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'private' and p.proname in
-  ('customer_guard','replay','remember','haversine_km','fee_for','uuid_text','delivery_terms','schedule_check','price_order','status_message','notify','notify_station','transition','notice_scope') loop
+  ('customer_guard','replay','remember','haversine_km','fee_for','uuid_text','delivery_terms','schedule_check','price_order','status_message','notify','notify_station','transition','notice_scope','insert_order') loop
   execute 'revoke all on function ' || f.sig || ' from public, anon, authenticated, service_role';
  end loop;
  for f in select p.oid::regprocedure sig from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname in

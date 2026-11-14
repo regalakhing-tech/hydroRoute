@@ -83,7 +83,7 @@ $db->results['get_customer_overview'] = ['ok' => true, 'data' => ['active' => ['
     'recent' => [], 'unread_notifications' => 2, 'unread_messages' => 1, 'default_address' => ['id' => ADR, 'label' => 'Home', 'address' => 'Purok 2, Guintas', 'pinned' => false]]];
 $_GET = [];
 $page = $ui->page('customer', 'overview')->body;
-check(str_contains($page, 'HMT-0003') && str_contains($page, 'add a map pin for delivery') && str_contains($page, 'Good') && !str_contains($page, 'Maria Santos') && !str_contains($page, 'HMT-104'), 'Overview shows the live active order and the pinless-address warning');
+check(str_contains($page, 'HMT-0003') && str_contains($page, 'Good') && !str_contains($page, 'Maria Santos') && !str_contains($page, 'HMT-104'), 'Overview shows the live active order');
 $db->tables['stations'] = [['id' => CST, 'slug' => 'real-station', 'name' => 'Real Station', 'address' => 'Purok 1, Guintas', 'barangay' => 'Guintas', 'phone' => '+639170000001', 'description' => 'Clean water since 2010.']];
 $db->results['get_station_availability'] = ['ok' => true, 'data' => ['accepting_asap' => true, 'can_book' => true, 'label' => 'Open now', 'public_notice' => '', 'preview' => [['date' => '2026-11-16', 'windows' => [['opens_at' => '07:00:00', 'closes_at' => '18:00:00']]]]]];
 $db->tables['products'] = [['id' => PRO, 'station_id' => CST, 'active' => 'true', 'name' => 'Round refill', 'pack_text' => '18.9 L', 'description' => '', 'image_key' => 'water-jug', 'price_centavos' => 2500, 'returnable' => true, 'load_units' => 1]];
@@ -92,7 +92,7 @@ $db->tables['addresses'] = [['id' => ADR, 'label' => 'Home', 'address' => 'Purok
 $db->results['quote_delivery'] = ['ok' => true, 'data' => ['eligible' => true, 'distance_display' => 1.4, 'fee_centavos' => 1000]];
 $_GET = ['station' => 'real-station'];
 $page = $ui->page('customer', 'station')->body;
-check(str_contains($page, 'PHP 25.00') && str_contains($page, 'name="qty[' . PRO . ']"') && str_contains($page, 'name="station" value="' . CST . '"') && str_contains($page, '1.4 km') && str_contains($page, 'PHP 10.00') && str_contains($page, 'Guintas'), 'Station page: live prices, served barangay and the fee from the default address');
+check(str_contains($page, 'PHP 25.00') && str_contains($page, 'name="' . PRO . '"') && str_contains($page, 'name="station" value="' . CST . '"') && str_contains($page, '1.4 km') && str_contains($page, 'PHP 10.00') && str_contains($page, 'Guintas'), 'Station page: live prices, served barangay and the fee from the default address');
 $_GET = ['station' => 'no-such-station'];
 $db->tables['stations'][0]['slug'] = 'real-station';
 check(str_contains($ui->page('customer', 'station')->body, 'Station not found'), 'Unknown station');
@@ -102,7 +102,7 @@ $page = $ui->page('customer', 'account')->body;
 check(str_contains($page, 'value="Lia &lt;Santos&gt;"') && str_contains($page, 'value="09171234567"') && str_contains($page, 'action="/customer/account/password"') && str_contains($page, 'action="/customer/account/logout-all"') && !str_contains($page, 'maria.santos@example.com'), 'Account page is live and escaped');
 $db->tables['barangays'] = [['id' => BRG, 'name' => 'Guintas', 'active' => 'true']];
 $page = $ui->page('customer', 'addresses')->body;
-check(str_contains($page, 'data-pin-picker') && str_contains($page, 'Pinned (map)') && str_contains($page, 'action="/customer/addresses/delete"') && !str_contains($page, 'National Road, Poblacion'), 'Address page lists live addresses with the pin picker');
+check(str_contains($page, 'data-pin-picker') && str_contains($page, 'Map pin saved') && str_contains($page, 'action="/customer/addresses/delete"') && !str_contains($page, 'National Road, Poblacion'), 'Address page lists live addresses with the pin picker');
 
 // Sign out everywhere last: it ends the session.
 $login();

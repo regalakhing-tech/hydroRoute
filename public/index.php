@@ -33,6 +33,8 @@ try {
         '/assets/vendor/leaflet/images/layers.png' => ['file' => __DIR__ . '/assets/vendor/leaflet/images/layers.png', 'type' => 'image/png'],
         '/assets/vendor/leaflet/images/layers-2x.png' => ['file' => __DIR__ . '/assets/vendor/leaflet/images/layers-2x.png', 'type' => 'image/png'],
         '/assets/js/live.js' => ['file' => __DIR__ . '/assets/js/live.js', 'type' => 'text/javascript; charset=utf-8'],
+        '/assets/js/live-chat.js' => ['file' => __DIR__ . '/assets/js/live-chat.js', 'type' => 'text/javascript; charset=utf-8'],
+        '/assets/data/hamtic-barangays.json' => ['file' => __DIR__ . '/assets/data/hamtic-barangays.json', 'type' => 'application/json; charset=utf-8'],
         '/assets/images/hero-water.webp' => ['file' => __DIR__ . '/assets/images/hero-water.webp', 'type' => 'image/webp'],
         '/assets/images/water-jug.webp' => ['file' => __DIR__ . '/assets/images/water-jug.webp', 'type' => 'image/webp'],
         '/assets/images/water-bottle.webp' => ['file' => __DIR__ . '/assets/images/water-bottle.webp', 'type' => 'image/webp'],

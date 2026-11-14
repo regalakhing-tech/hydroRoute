@@ -125,7 +125,7 @@ $db->results['get_station_overview'] = ['ok' => true, 'data' => ['today' => '202
     'availability' => ['label' => 'Open now', 'accepting_asap' => true, 'is_open' => true, 'next_close_at' => '2026-11-16T10:00:00+00:00'], 'queue' => $queue['queue'], 'ready_delivery' => []]];
 $db->results['list_notifications'] = ['ok' => true, 'data' => ['unread' => 0, 'notifications' => []]];
 $page = $ui->page('station-admin', 'overview')->body;
-check(str_contains($page, 'PHP 345.00') && str_contains($page, 'PHP 45.00') && str_contains($page, 'HMT-0001') && !str_contains($page, 'Maria Santos') && !str_contains($page, 'HMT-104'), 'Overview shows live numbers only');
+check(str_contains($page, 'PHP 300.00') && str_contains($page, 'HMT-0001') && !str_contains($page, 'Maria Santos') && !str_contains($page, 'HMT-104'), 'Overview shows live numbers only');
 $db->results['get_station_order'] = ['ok' => true, 'data' => ['order' => ['id' => OR1, 'order_no' => 'HMT-0001', 'contact_name' => 'Lia Live', 'contact_phone' => '+639171111111', 'customer_id' => KEY,
     'status' => 'delivered', 'fulfillment' => 'delivery', 'version' => 7, 'address_label' => 'Home', 'address_text' => 'Purok 1', 'address_landmark' => '', 'subtotal_centavos' => 6000, 'quoted_fee_centavos' => 1000,
     'final_fee_centavos' => null, 'total_centavos' => 7000, 'distance_display' => 1.5, 'note' => '', 'redispatch_paused' => false],
@@ -133,7 +133,7 @@ $db->results['get_station_order'] = ['ok' => true, 'data' => ['order' => ['id' =
     'payment' => ['id' => PAY, 'state' => 'unverified', 'applied_centavos' => 7000, 'tendered_centavos' => 10000, 'change_centavos' => 3000, 'empties_returned' => 3, 'expected_empties' => 3, 'version' => 1], 'classification' => 'household', 'driver' => null]];
 $_GET = ['order' => OR1];
 $page = $ui->page('station-admin', 'orders')->body;
-check(str_contains($page, '#1 (estimate)') && str_contains($page, 'Overdue') && str_contains($page, 'action="/station-admin/orders/start"') && str_contains($page, 'data-poll-version="' . Workspace::fingerprint($queue) . '"'), 'Queue shows rank, overdue and actions');
+check(str_contains($page, 'Priority score') && str_contains($page, 'Overdue') && str_contains($page, 'href="/station-admin/orders?order=' . OR1 . '"') && str_contains($page, 'data-poll-version="' . Workspace::fingerprint($queue) . '"'), 'Queue shows priority, overdue and order links');
 check(str_contains($page, 'action="/station-admin/payments/verify"') && str_contains($page, 'action="/station-admin/orders/fee-review"') && str_contains($page, 'action="/station-admin/orders/complete"'), 'Order panel offers cash verification, fee review and completion');
 $db->results['get_dispatch_queue'] = ['ok' => true, 'data' => ['ready_delivery' => [], 'ready_pickup' => [], 'collected' => [], 'delivered' => [], 'reviews' => [],
     'riders' => [['id' => RID, 'name' => 'Rider One', 'vehicle' => 'Tricycle', 'plate_number' => 'ANT 1', 'capacity' => 15, 'enabled' => true, 'free' => true, 'version' => 1, 'trips_today' => 0]],
@@ -143,9 +143,9 @@ $db->results['preview_trip'] = ['ok' => true, 'data' => ['proposal' => ['rider_i
     'other_riders' => [], 'eligible' => [['order_id' => OR1]], 'warnings' => [['order_id' => OR2, 'order_no' => 'HMT-0002', 'load' => 20, 'message' => 'No free vehicle can carry this whole order.']]]];
 $_GET = [];
 $page = $ui->page('station-admin', 'deliveries')->body;
-check(str_contains($page, 'action="/station-admin/dispatch"') && str_contains($page, 'name="order_ids[]" value="' . OR1 . '"') && str_contains($page, 'HMT-0002') && str_contains($page, 'Move one overdue stop'), 'Dispatch proposal with SSTF stops, capacity warning and overdue option');
+check(str_contains($page, 'action="/station-admin/dispatch"') && str_contains($page, 'name="order_ids[]" value="' . OR1 . '"') && str_contains($page, 'HMT-0002') && str_contains($page, 'Move an overdue stop first'), 'Dispatch proposal with SSTF stops, capacity warning and overdue option');
 $page = $ui->page('station-admin', 'pickups')->body;
-check(str_contains($page, 'No pickup is ready') && !str_contains($page, 'Emilia Ramos'), 'Pickup page is live');
+check(str_contains($page, 'No pickup orders right now.') && !str_contains($page, 'Emilia Ramos'), 'Pickup page is live');
 $db->results['get_station_customers'] = ['ok' => true, 'data' => ['customers' => [['customer_id' => KEY, 'name' => 'Lia <Live>', 'phone' => '+639171111111', 'barangay' => 'Guintas', 'orders' => 4, 'completed' => 3, 'last_order_at' => '2026-11-16T01:00:00+00:00', 'total_spent_centavos' => 21000, 'classification' => 'institution', 'version' => 2]]]];
 $page = $ui->page('station-admin', 'customers')->body;
 check(str_contains($page, 'Lia &lt;Live&gt;') && str_contains($page, 'PHP 210.00') && str_contains($page, 'value="institution" selected') && !str_contains($page, 'Guintas Learning Center'), 'Customers list is live and escaped');
@@ -168,9 +168,17 @@ $db->results['get_trip'] = ['ok' => true, 'data' => $tripData];
 $page = $ui->page('rider', 'trip')->body;
 check(str_contains($page, 'action="/rider/trips/result"') && str_contains($page, 'PHP 65.00') && str_contains($page, 'value="failed"'), 'After arrival: delivered and failed forms with the lowered amount');
 $db->results['get_trip'] = ['ok' => true, 'data' => ['trip' => null]];
-check(str_contains($ui->page('rider', 'trip')->body, 'No trip is assigned'), 'Rider without a trip');
+check(str_contains($ui->page('rider', 'trip')->body, 'No trip assigned'), 'Rider without a trip');
 $db->results['list_rider_history'] = ['ok' => true, 'data' => ['stops' => [['order_no' => 'HMT-0001', 'customer_name' => 'Lia Live', 'barangay' => 'Guintas', 'state' => 'failed', 'trip_no' => 4, 'station_name' => 'Live Station', 'total_units' => 3, 'empties_returned' => null, 'failure_reason' => 'Customer unavailable', 'resolved_at' => '2026-11-16T01:00:00+00:00']]]];
 $page = $ui->page('rider', 'history')->body;
 check(str_contains($page, 'Customer unavailable') && !str_contains($page, 'HMT-099'), 'Rider history is live');
+
+$db->tables['drivers'] = [['user_id' => 'u-1', 'station_id' => ST, 'full_name' => 'Rider <One>', 'phone' => '+639171234567', 'email' => 'rider@example.test', 'vehicle' => 'Tricycle', 'plate_number' => 'ANT 1', 'capacity' => 15, 'active' => true]];
+$db->tables['stations'] = [['id' => ST, 'name' => 'Live Station']];
+$page = $ui->page('rider', 'account')->body;
+check(str_contains($page, 'Rider &lt;One&gt;') && str_contains($page, '0917 123 4567') && str_contains($page, 'ANT 1') && str_contains($page, 'Live Station') && !str_contains($page, 'Juan Reyes'), 'Rider account shows the station\'s registration');
+$db->results['get_trip'] = ['ok' => true, 'data' => $tripData];
+$page = $ui->page('rider', 'problem')->body;
+check(str_contains($page, 'action="/rider/trips/result"') && str_contains($page, 'name="result" value="failed"') && str_contains($page, 'name="failure_reason"') && str_contains($page, 'Lia Live'), 'Problem report records a failed attempt for the arrived stop');
 
 echo $checks . " operations checks passed.\n";

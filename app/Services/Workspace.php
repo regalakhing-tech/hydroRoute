@@ -81,8 +81,15 @@ final class Workspace
             $form['address_id'] = (string) ($pinned[0]['id'] ?? $addresses[0]['id'] ?? '');
         }
         $quote = $items === [] ? null : $this->db->rpc('quote_order', ['p_station_id' => $stationId, 'p_payload' => Checkout::payload($items, $form)], $token);
+        // Fee per pinned address, so switching addresses updates the total at once; the order total is still recalculated by the database.
+        $fees = [];
+        foreach ($addresses as $a) {
+            if ($a['latitude'] === null) continue;
+            $terms = $this->db->rpc('quote_delivery', ['p_station_id' => $stationId, 'p_address_id' => $a['id']], $token)['data'] ?? [];
+            if (!empty($terms['eligible'])) $fees[$a['id']] = ((int) $terms['fee_centavos']) / 100;
+        }
         return ['station' => $station, 'availability' => is_array($availability) ? $availability : [], 'products' => $known, 'addresses' => $addresses,
-            'items' => $items, 'form' => $form, 'quote' => $quote];
+            'items' => $items, 'form' => $form, 'quote' => $quote, 'fees' => $fees];
     }
 
     /** Customer home page. */
@@ -122,7 +129,11 @@ final class Workspace
         $id = Session::user()['id'] ?? '';
         $profile = $this->db->select('profiles', ['select' => 'id,display_name,phone,order_updates,station_updates,version', 'id' => 'eq.' . $id], $this->token())[0] ?? null;
         if ($profile === null) throw new RuntimeException('Profile unavailable.');
-        return ['profile' => $profile, 'email' => (string) (Session::user()['email'] ?? '')];
+        $token = $this->token();
+        $addresses = $this->db->select('addresses', ['select' => 'id,label,address,landmark,is_default', 'deleted_at' => 'is.null', 'order' => 'is_default.desc,label.asc'], $token);
+        $orders = $this->db->select('orders', ['select' => 'id,created_at', 'order' => 'created_at.asc'], $token);
+        return ['profile' => $profile, 'email' => (string) (Session::user()['email'] ?? ''), 'addresses' => $addresses, 'orders' => count($orders),
+            'since' => isset($orders[0]['created_at']) ? substr((string) $orders[0]['created_at'], 0, 4) : date('Y')];
     }
 
     public function addresses(): array
@@ -130,7 +141,7 @@ final class Workspace
         $token = $this->token();
         return ['addresses' => $this->db->select('addresses', ['select' => 'id,label,address,street,landmark,barangay_id,latitude,longitude,pin_source,is_default,version',
                 'deleted_at' => 'is.null', 'order' => 'is_default.desc,label.asc'], $token),
-            'barangays' => $this->db->select('barangays', ['select' => 'id,name', 'active' => 'eq.true', 'order' => 'name.asc'], $token)];
+            'barangays' => $this->db->select('barangays', ['select' => 'id,name,psgc_code', 'active' => 'eq.true', 'order' => 'name.asc'], $token)];
     }
 
     public function orders(string $group): array
@@ -212,6 +223,14 @@ final class Workspace
     {
         if (!is_string($id) || preg_match('/^[0-9a-f-]{36}$/D', $id) !== 1) return ['error_code' => 'not_found'];
         return $this->call('get_messages', ['p_conversation_id' => $id, 'p_after' => (object) []]);
+    }
+
+    public function riderAccount(): array
+    {
+        $token = $this->token();
+        $driver = $this->db->select('drivers', ['select' => 'full_name,phone,email,vehicle,plate_number,capacity,active,station_id', 'user_id' => 'eq.' . (Session::user()['id'] ?? '')], $token)[0] ?? null;
+        $station = $driver ? ($this->db->select('stations', ['select' => 'name', 'id' => 'eq.' . $driver['station_id']], $token)[0]['name'] ?? '') : '';
+        return ['driver' => $driver, 'station' => $station];
     }
 
     public function riderHistory(): array

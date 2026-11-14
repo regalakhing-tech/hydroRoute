@@ -117,10 +117,10 @@ $db->tables['products'] = [['id' => P, 'station_id' => S, 'active' => 'true', 'n
 $db->tables['addresses'] = [['id' => A, 'label' => 'Home', 'address' => 'Purok 1', 'latitude' => 10.61, 'longitude' => 122.0]];
 $db->results['get_station_availability'] = ['ok' => true, 'data' => ['accepting_asap' => true, 'can_book' => true, 'label' => 'Open now', 'preview' => []]];
 $db->results['quote_order'] = ['ok' => true, 'data' => ['fulfillment' => 'delivery', 'subtotal_centavos' => 4000, 'fee_centavos' => 1000, 'total_centavos' => 5000, 'total_units' => 2,
-    'delivery' => ['distance_display' => 1.1], 'items' => [['name' => 'Round refill', 'quantity' => 2, 'line_total_centavos' => 4000]]]];
+    'delivery' => ['distance_display' => 1.1], 'items' => [['name' => 'Round refill', 'quantity' => 2, 'unit_price_centavos' => 2000, 'line_total_centavos' => 4000]]]];
 $_GET = ['station' => S, 'qty' => [P => '2']];
 $page = $ui->page('customer', 'checkout')->body;
-check(str_contains($page, 'action="/customer/orders"') && str_contains($page, 'name="qty[' . P . ']"') && str_contains($page, 'value="' . Session::csrfToken() . '"'), 'Checkout posts a real form with CSRF');
+check(str_contains($page, 'action="/customer/orders"') && str_contains($page, 'name="' . P . '"') && str_contains($page, 'value="' . Session::csrfToken() . '"'), 'Checkout posts a real form with CSRF');
 check(str_contains($page, 'PHP 50.00') && str_contains($page, '1.1 km') && str_contains($page, 'Live Station') && !str_contains($page, 'Guintas Water Station') && !str_contains($page, 'Maria Santos'), 'Checkout shows the database quote, not samples');
 $_GET = ['station' => '99999999-9999-4999-8999-999999999999'];
 $db->tables['stations'][0]['id'] = S;
@@ -144,7 +144,7 @@ $db->results['list_customer_orders'] = ['ok' => true, 'data' => ['orders' => [['
     'created_at' => '2026-11-15T01:00:00+00:00', 'requested_at' => null, 'schedule_mode' => 'asap', 'total_units' => 2, 'total_centavos' => 4000]]]];
 $_GET = ['group' => 'active'];
 $page = $ui->page('customer', 'orders')->body;
-check(str_contains($page, 'HMT-0007') && str_contains($page, 'Ready for pickup') && !str_contains($page, 'HMT-104') && $last('list_customer_orders')[2]['p_filters'] === ['group' => 'active'], 'Orders list is live and filtered');
+check(str_contains($page, 'HMT-0007') && str_contains($page, 'Ready for pickup') && !str_contains($page, 'HMT-104') && $last('list_customer_orders')[2]['p_filters'] === ['group' => 'all'], 'Orders list is live; tabs filter in the page');
 $db->errors['list_customer_orders'] = new RuntimeException('down');
 $page = $ui->page('customer', 'orders')->body;
 check(str_contains($page, 'could not be loaded') && !str_contains($page, 'HMT-098'), 'Supabase failure shows an error state, never samples');

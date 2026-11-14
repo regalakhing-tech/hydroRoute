@@ -1,4 +1,5 @@
 <?php
+// Original checkout design, now placing real orders: prices, fee and total come from the database quote.
 use App\Controllers\LiveController;
 use App\Core\Session;
 use App\Services\Workspace;
@@ -6,48 +7,56 @@ use App\UI\OrderStatus as S;
 use App\UI\UI as U;
 
 $live = Workspace::get()->load(static fn (Workspace $w): array => $w->checkout($_GET));
-if (isset($live['error'])): ?>
-<?= U::heading('Checkout unavailable', $live['error']) ?><?= U::btn('Find stations', '/customer/stations', 'primary', 'arrow-left') ?>
+if (isset($live['error']) || !empty($live['missing'])): ?>
+<?= U::heading('Station not found', $live['error'] ?? 'Choose a station from the current list.') ?>
+<?= U::btn('Find stations', '/customer/stations', 'primary', 'arrow-left') ?>
 <?php return; endif;
-if (!empty($live['missing'])): ?>
-<?= U::heading('Station not found', 'Choose a station from the current list.') ?><?= U::btn('Find stations', '/customer/stations', 'primary', 'arrow-left') ?>
-<?php return; endif;
-$station = $live['station']; $avail = $live['availability']; $form = $live['form']; $quote = $live['quote'];
-$q = ($quote['ok'] ?? false) === true ? $quote['data'] : null;
-$quoteError = $quote !== null && $q === null ? (current(array_filter($quote['field_errors'] ?? [], 'is_string')) ?: 'Check your order details.') : '';
+$station = $live['station']; $avail = $live['availability']; $form = $live['form'];
+$q = ($live['quote']['ok'] ?? false) === true ? $live['quote']['data'] : null;
+$quoteError = $live['quote'] !== null && $q === null ? (current(array_filter($live['quote']['field_errors'] ?? [], 'is_string')) ?: 'Check your order details.') : '';
 $errors = is_array($_SESSION['form_errors'] ?? null) ? $_SESSION['form_errors'] : []; unset($_SESSION['form_errors']);
-if (empty($avail['accepting_asap']) && $form['schedule'] === 'asap' && !isset($_GET['schedule'])) $form['schedule'] = 'scheduled';
+if (empty($avail['accepting_asap']) && empty($avail['can_book'])): ?><?= U::heading('Ordering currently unavailable', ($avail['public_notice'] ?? '') ?: 'This station is not taking orders right now.') ?><?= U::btn('Back to station', '/customer/station?station=' . $station['id'], 'primary') ?><?php return; endif;
+if ($live['items'] === []): ?>
+<?= U::heading('Your basket is empty', 'Choose at least one product to continue.') ?>
+<?= U::btn('Choose products', '/customer/station?station=' . $station['id'], 'primary') ?>
+<?php return; endif;
+$mode = $form['fulfillment'];
+$schedule = empty($avail['accepting_asap']) ? 'scheduled' : $form['schedule'];
 $now = new DateTimeImmutable('now', new DateTimeZone('Asia/Manila'));
-$min = $now->modify('+10 minutes')->format('Y-m-d\TH:i'); $max = $now->modify('+7 days')->format('Y-m-d') . 'T23:59';
-$addresses = []; foreach ($live['addresses'] as $a) $addresses[$a['id']] = $a['label'] . ' — ' . $a['address'] . ($a['latitude'] === null ? ' (no map pin: pickup only)' : '');
-$error = static fn (string $field): string => isset($errors[$field]) ? '<p class="mt-1 text-sm font-semibold text-rose-700" role="alert">' . U::e($errors[$field]) . '</p>' : '';
+[$date, $time] = $form['requested_at'] !== '' ? explode('T', $form['requested_at']) : [$now->format('Y-m-d'), ''];
+$times = [];
+foreach ($avail['preview'] ?? [] as $day) foreach ($day['windows'] ?? [] as $w) for ($t = strtotime($w['opens_at']); $t < strtotime($w['closes_at']); $t += 1800) $times[date('H:i', $t)] = date('g:i A', $t);
+ksort($times);
+$addressOptions = [];
+foreach ($live['addresses'] as $a) $addressOptions[$a['id']] = $a['label'] . ' — ' . $a['address'] . ($a['latitude'] === null ? ' (no map pin)' : '');
+if ($addressOptions === []) $addressOptions = ['' => 'No saved address yet'];
+$fee = $mode === 'pickup' ? 0 : (isset($q['fee_centavos']) ? $q['fee_centavos'] / 100 : ($live['fees'][$form['address_id']] ?? 0));
+$subtotal = $q ? $q['subtotal_centavos'] / 100 : 0;
+$returns = $q['expected_empties'] ?? 0;
+$err = static fn (string $f): string => isset($errors[$f]) ? '<p class="mt-2 text-sm font-semibold text-rose-700" role="alert">' . U::e($errors[$f]) . '</p>' : '';
 ?>
-<?= U::heading('Place your order', 'Order from ' . $station['name'] . '. Prices, distance and delivery fee are calculated by the station system.', U::btn('Back to station', '/customer/station?station=' . $station['id'], 'secondary', 'arrow-left')) ?>
-<?php if (empty($avail['accepting_asap'])): ?><p class="mb-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-900" role="status"><?= U::icon('clock', 'size-4 mt-0.5 shrink-0') ?><span><strong><?= U::e($avail['label'] ?? 'Closed') ?>.</strong> <?= U::e(($avail['public_notice'] ?? '') !== '' ? $avail['public_notice'] . ' ' : '') ?><?= !empty($avail['can_book']) ? 'You can still schedule an order for when the station is open.' : 'The station is not taking orders right now.' ?><?= !empty($avail['next_open_at']) ? ' Next opening: ' . U::e(S::time($avail['next_open_at'])) . '.' : '' ?></span></p><?php endif ?>
-<form method="post" action="/customer/orders" id="checkout-form" class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]" data-live-quote="/customer/checkout/quote" data-submit-once>
+<?= U::heading('Place your order', 'Order your water refills from ' . $station['name'] . '.') ?>
+<form method="post" action="/customer/orders" data-fulfillment-root data-initial-mode="<?= $mode ?>" data-persist="live-checkout-<?= U::e($station['id']) ?>" data-live-quote="/customer/checkout/quote" data-submit-once class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
 <input type="hidden" name="_token" value="<?= U::e(Session::csrfToken()) ?>"><input type="hidden" name="request_key" value="<?= U::e(LiveController::key()) ?>"><input type="hidden" name="station" value="<?= U::e($station['id']) ?>">
-<div class="space-y-5">
-<section class="panel p-5 md:p-6"><?= U::title('1. Choose your water', 'bottle', 'mb-1') ?><p class="muted mb-4 text-sm">Set a quantity for each product you want.</p><?= $error('items') ?>
-<?php if ($live['products'] === []): ?><p class="rounded-lg bg-foam p-4 text-sm">This station has no products available right now.</p><?php endif ?>
-<div class="space-y-3"><?php foreach ($live['products'] as $p): $n = $live['items'][$p['id']] ?? 0; $fid = 'qty-' . $p['id']; ?>
-<article class="flex flex-wrap items-center gap-4 rounded-xl border border-line p-3.5"><img src="<?= U::e(S::image($p['image_key'])) ?>" alt="" class="h-16 w-16 rounded-lg bg-foam object-contain" width="64" height="64" loading="lazy"><div class="min-w-0 flex-1"><h3 class="font-bold"><?= U::e($p['name']) ?></h3><p class="text-sm text-muted"><?= U::e($p['pack_text']) ?><?= $p['returnable'] ? ' · bring your empty container' : '' ?></p><p class="mt-1 font-semibold"><?= S::pesos($p['price_centavos']) ?></p></div>
-<div class="flex items-center overflow-hidden rounded-lg border border-line"><?= U::btn('−', '', 'secondary', '', ['data-step' => '-1', 'data-counter' => $fid, 'aria-label' => 'Fewer ' . $p['name']]) ?><input class="w-14 bg-white py-2.5 text-center" id="<?= U::e($fid) ?>" name="qty[<?= U::e($p['id']) ?>]" type="number" min="0" max="999" value="<?= (int) $n ?>" aria-label="<?= U::e($p['name']) ?> quantity"><?= U::btn('+', '', 'secondary', '', ['data-step' => '1', 'data-counter' => $fid, 'aria-label' => 'More ' . $p['name']]) ?></div></article>
-<?php endforeach ?></div></section>
-<section class="panel space-y-6 p-5 md:p-6">
-<fieldset><legend class="section-title mb-3">2. Delivery or pickup</legend><div class="grid gap-3 sm:grid-cols-2"><?php foreach (['delivery' => ['Delivery', 'truck', 'Bring water to your saved address.'], 'pickup' => ['Pickup', 'store', 'Collect at the station. No delivery fee.']] as $value => [$label, $icon, $copy]): ?><label class="flex cursor-pointer gap-3 rounded-xl border border-line p-4 has-[:checked]:border-water has-[:checked]:bg-foam"><input type="radio" name="fulfillment" value="<?= $value ?>" <?= $form['fulfillment'] === $value ? 'checked' : '' ?> class="mt-1 accent-cyan-600" data-toggle-group="fulfillment"><?= U::icon($icon, 'size-6 text-water') ?><span><strong><?= $label ?></strong><span class="block text-sm text-muted"><?= $copy ?></span></span></label><?php endforeach ?></div></fieldset>
-<div data-show-when="fulfillment=delivery"><?php if ($addresses === []): ?><p class="rounded-lg bg-foam p-4 text-sm">You have no saved address yet. <a class="font-semibold text-water" href="/customer/addresses">Add an address with a map pin</a> to order delivery, or choose pickup.</p><?php else: ?><?= U::select('Delivery address', 'address_id', $addresses, $form['address_id']) ?><?php endif ?><?= $error('address_id') ?><a href="/customer/addresses" class="mt-2 inline-block text-sm font-semibold text-water">Manage addresses</a></div>
-<div data-show-when="fulfillment=pickup" class="rounded-xl bg-foam p-4 text-sm"><p class="font-semibold"><?= U::e($station['name']) ?></p><p><?= U::e($station['address']) ?></p><p class="mt-2 text-muted">Bring your empty containers. Wait until the station marks your order ready before you go.</p></div>
-<fieldset><legend class="section-title mb-3">3. When</legend><?= $error('schedule') ?><div class="space-y-3"><label class="flex gap-3"><input type="radio" name="schedule" value="asap" <?= $form['schedule'] === 'asap' ? 'checked' : '' ?> class="accent-cyan-600" data-toggle-group="schedule" <?= empty($avail['accepting_asap']) ? 'disabled' : '' ?>><span><strong>As soon as possible</strong><span class="block text-sm text-muted"><?= empty($avail['accepting_asap']) ? 'Not available while the station is closed.' : 'The station starts it in priority order.' ?></span></span></label><label class="flex gap-3"><input type="radio" name="schedule" value="scheduled" <?= $form['schedule'] === 'scheduled' ? 'checked' : '' ?> class="accent-cyan-600" data-toggle-group="schedule"><span><strong>Schedule for later</strong><span class="block text-sm text-muted">Today or up to 7 days ahead, inside the station's hours.</span></span></label></div>
-<div class="mt-3 max-w-xs" data-show-when="schedule=scheduled"><?= U::field('Date and time', 'requested_at', $form['requested_at'], 'datetime-local', ['min' => $min, 'max' => $max]) ?><?= $error('requested_at') ?></div>
-<?php $open = array_filter($avail['preview'] ?? [], static fn (array $d): bool => ($d['windows'] ?? []) !== []); if ($open !== []): ?><details class="mt-3 text-sm"><summary class="cursor-pointer font-semibold text-water">Opening hours for the next 7 days</summary><ul class="mt-2 space-y-1"><?php foreach ($open as $day): ?><li><span class="font-medium"><?= U::e((new DateTimeImmutable($day['date']))->format('D, M j')) ?>:</span> <?= U::e(implode(', ', array_map(static fn (array $w): string => date('g:i A', strtotime($w['opens_at'])) . ' – ' . date('g:i A', strtotime($w['closes_at'])), $day['windows']))) ?></li><?php endforeach ?></ul></details><?php endif ?></fieldset>
-<div><?= U::textarea('Note for the station (optional)', 'note', $form['note'], ['maxlength' => '200', 'placeholder' => 'Blue gate. Please call when you arrive.']) ?><?= $error('note') ?></div>
-<div class="flex items-center gap-3 rounded-lg border border-line bg-foam p-4"><?= U::icon('credit', 'size-5 text-water') ?><span><strong data-show-when="fulfillment=delivery">Cash on delivery</strong><strong data-show-when="fulfillment=pickup">Cash on pickup</strong><span class="block text-sm text-muted">Pay the total shown when you receive your water.</span></span></div><?= $error('phone') ?>
+<?php foreach ($live['items'] as $id => $n): ?><input type="hidden" name="<?= U::e($id) ?>" value="<?= (int) $n ?>"><?php endforeach ?>
+<div class="space-y-5"><section class="panel p-5 flex items-center gap-5"><?= U::productImage('h-24 w-24 rounded-lg bg-foam') ?><div><h2 class="text-xl font-bold"><?= U::e($station['name']) ?></h2><p class="muted">Brgy. <?= U::e($station['barangay'] ?: 'Hamtic') ?>, Hamtic, Antique</p><div class="mt-3"><?= U::badge($avail['label'] ?? 'Closed', !empty($avail['accepting_asap']) ? 'green' : 'amber') ?></div></div></section>
+<section class="panel p-5 md:p-6 space-y-7">
+<fieldset><legend class="section-title mb-3">1. How would you like your water?</legend><div class="grid gap-3 sm:grid-cols-2"><?php foreach (['delivery' => ['Delivery', 'truck', 'Bring water to your saved address.'], 'pickup' => ['Pickup', 'store', 'Collect your water at the station.']] as $value => $option): ?><label class="relative flex gap-3 rounded-xl border border-line p-4 cursor-pointer has-[:checked]:border-water has-[:checked]:bg-foam"><input type="radio" name="fulfillment" value="<?= $value ?>" <?= $mode === $value ? 'checked' : '' ?> required class="accent-cyan-600 mt-1"><?= U::icon($option[1], 'size-6 text-water') ?><span><strong><?= $option[0] ?></strong><span class="block muted text-sm"><?= $option[2] ?></span></span></label><?php endforeach; ?></div></fieldset>
+<div data-delivery-address><?= U::title('Delivery address', 'truck', '') ?><p class="muted mb-3">Choose where you want your order delivered.</p><?= U::select('Saved address', 'address', $addressOptions, $form['address_id'], ['required' => true, 'data-fees' => json_encode($live['fees'])]) ?><?= $err('address_id') ?><a href="/customer/addresses" class="inline-block mt-2 text-water font-semibold">Manage addresses</a></div>
+<section data-pickup-location hidden class="rounded-xl bg-foam p-4"><?= U::title('Pickup location', 'file', '') ?><p class="font-semibold mt-2"><?= U::e($station['name']) ?></p><p><?= U::e($station['address']) ?></p><p class="muted mt-2">Bring your empty containers. Wait for the station to confirm your order is ready before collecting.</p></section>
+<fieldset><legend class="section-title" data-option-title>2. Delivery option</legend><p class="muted mb-3"><span data-timing-question>When do you want your order delivered?</span></p><?= $err('schedule') ?>
+<label class="flex gap-3 mb-3"><input type="radio" name="delivery" value="asap" <?= $schedule === 'asap' ? 'checked' : '' ?> <?= empty($avail['accepting_asap']) ? 'disabled' : '' ?> class="accent-cyan-600"><span><strong data-asap-title>As soon as possible (ASAP)</strong><span class="block muted"><span data-asap-copy><?= empty($avail['accepting_asap']) ? 'Unavailable while the station is closed.' : 'For the next available delivery.' ?></span></span></span></label>
+<label class="flex gap-3"><input type="radio" name="delivery" value="scheduled" <?= $schedule === 'scheduled' ? 'checked' : '' ?> class="accent-cyan-600"><span><strong data-schedule-title>Schedule delivery for later</strong><span class="block muted">Today or up to 7 days ahead, within the station's hours.</span></span></label>
+<div class="grid sm:grid-cols-2 gap-3 mt-3"><?= U::field('Preferred date', 'date', $date, 'date', ['min' => $now->format('Y-m-d'), 'max' => $now->modify('+7 days')->format('Y-m-d')]) ?><?= U::select('Preferred time', 'time', ['' => 'Choose a time'] + $times, $time) ?></div><?= $err('requested_at') ?></fieldset>
+<div><?= U::title('3. Empty containers to return', 'bottle', 'mb-3') ?><p class="rounded-lg bg-foam p-3 text-sm">Please prepare <strong><?= (int) $returns ?></strong> empty container<?= $returns === 1 ? '' : 's' ?> for exchange (one for each refill in your order).</p></div>
+<div><h2 class="section-title mb-3"><span data-notes-title>4. Delivery notes (optional)</span></h2><?= U::textarea('Instructions for your delivery team', 'notes', $form['note'], ['maxlength' => '200', 'placeholder' => 'Look for the blue gate. Please call upon arrival.']) ?><?= $err('note') ?></div>
+<fieldset><legend class="section-title mb-3">5. Payment method</legend><label class="flex items-center gap-3 rounded-lg border border-line bg-foam p-4"><input type="radio" name="payment" value="cash" checked required class="accent-cyan-600"><span><strong><span data-payment-title>Cash on delivery</span></strong><span class="block muted"><span data-payment-copy>Pay when your order is delivered.</span></span></span></label><?= $err('phone') ?></fieldset>
 </section></div>
-<aside class="panel self-start p-5 md:p-6"><?= U::title('Order summary', 'chart', 'mb-3') ?>
-<div data-quote-lines class="space-y-2 border-b border-line pb-4 text-sm"><?php foreach ($q['items'] ?? [] as $line): ?><div class="flex justify-between gap-3"><span><?= (int) $line['quantity'] ?> × <?= U::e($line['name']) ?></span><span><?= S::pesos($line['line_total_centavos']) ?></span></div><?php endforeach ?></div>
-<dl class="mt-4 space-y-2 text-sm"><div class="flex justify-between"><dt class="text-muted">Items</dt><dd data-quote="subtotal"><?= $q ? S::pesos($q['subtotal_centavos']) : '—' ?></dd></div><div class="flex justify-between" data-show-when="fulfillment=delivery"><dt class="text-muted">Distance</dt><dd data-quote="distance"><?= isset($q['delivery']['distance_display']) ? U::e($q['delivery']['distance_display']) . ' km' : '—' ?></dd></div><div class="flex justify-between"><dt class="text-muted">Delivery fee</dt><dd data-quote="fee"><?= $q ? ($q['fulfillment'] === 'pickup' ? 'Free (pickup)' : S::pesos($q['fee_centavos'])) : '—' ?></dd></div></dl>
-<div class="mt-4 flex justify-between rounded-lg bg-foam p-4 text-lg font-bold"><span>Total</span><span data-quote="total"><?= $q ? S::pesos($q['total_centavos']) : '—' ?></span></div>
+<aside class="panel p-5 md:p-6 self-start"><?= U::title('Order summary', 'chart', '') ?><p class="muted">Please review your order details.</p><div class="my-5 flex gap-3 items-center"><?= U::productImage('h-20 w-20 rounded-lg bg-foam') ?><strong><?= U::e($station['name']) ?></strong></div>
+<div class="space-y-4 border-y border-line py-5"><?php foreach ($q['items'] ?? [] as $item): ?>
+<div class="flex gap-3 items-center"><img src="<?= U::e(S::image($item['image_key'] ?? null)) ?>" alt="" class="h-16 w-16 rounded-lg bg-foam object-contain" width="64" height="64" loading="lazy"><div class="flex-1"><h3 class="font-semibold"><?= U::e($item['name']) ?></h3><p class="muted"><?= (int) $item['quantity'] ?> &times; <?= S::pesos($item['unit_price_centavos']) ?></p></div><strong><?= S::pesos($item['line_total_centavos']) ?></strong></div>
+<?php endforeach; ?><div class="flex justify-between gap-3"><span class="muted">Delivery fee</span><strong data-delivery-fee data-quote="fee"><?= $fee ? U::money($fee) : ($mode === 'pickup' ? 'Free (pickup)' : '—') ?></strong></div><p class="text-xs text-muted">One fee per delivery, from the station's distance table<?= isset($q['delivery']['distance_display']) ? ' (about ' . U::e($q['delivery']['distance_display']) . ' km)' : '' ?>.</p></div>
+<div class="flex justify-between rounded-lg bg-foam p-4 mt-4 font-bold text-lg"><span>Total amount</span><span data-checkout-total data-quote="total" data-subtotal="<?= $subtotal ?>"><?= U::money($subtotal + $fee) ?></span></div>
 <p data-quote-error class="mt-3 text-sm font-semibold text-rose-700 <?= $quoteError === '' ? 'hidden' : '' ?>" role="alert"><?= U::e($quoteError) ?></p>
-<p class="mt-3 text-xs text-muted">The station's fee table charges one delivery fee per order, based on the straight-line distance from the station. The station confirms the final amount when your order arrives; it never goes up at the door.</p>
-<div class="mt-5 grid gap-2"><?= U::btn('Place order', '', 'primary', 'check', ['type' => 'submit', 'class' => 'w-full']) ?><?= U::btn('Update total', '', 'secondary', 'refresh', ['type' => 'submit', 'formaction' => '/customer/checkout/review', 'class' => 'w-full', 'data-no-js-only' => true]) ?></div>
-</aside></form>
+<p class="my-5 rounded-lg bg-amber-50 p-4 text-sm text-amber-800"><span data-review-copy>Check your address before saving.</span> The station confirms the final amount; the delivery fee never goes up at your door.</p>
+<?= U::btn('Place order', '', 'primary', '', ['type' => 'submit', 'class' => 'w-full']) ?><div class="mt-3"><?= U::btn('Back to station', '/customer/station?station=' . $station['id'], 'secondary', '', ['class' => 'w-full']) ?></div></aside></form>

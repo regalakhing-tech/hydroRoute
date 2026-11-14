@@ -24,29 +24,34 @@ abstract class LiveController extends Controller
      */
     protected function mutate(string $role, string $back, string $function, callable $params, callable $done): Response
     {
-        $user = $this->member($role);
-        if ($user instanceof Response) return $user;
-        if ($failed = $this->csrfFailed($back)) return $failed;
+        // Pages that send with fetch (the chat) ask for JSON; forms get a flash message and a redirect.
+        $json = str_contains((string) ($_SERVER['HTTP_ACCEPT'] ?? ''), 'application/json');
+        $fail = fn (string $message, int $status, string $code = 'error'): Response => $json ? Response::json(['ok' => false, 'error_code' => $code, 'message' => $message], $status) : $this->back($back, 'error', $message);
+        $user = Session::user();
+        if (($user['role'] ?? null) !== $role) return $json ? Response::json(['ok' => false, 'error_code' => 'unauthorized'], 401) : $this->member($role);
+        if (!Session::validCsrf($_POST['_token'] ?? null)) return $fail('Your session expired. Please try again.', 419, 'csrf');
         $token = $this->current->token();
-        if ($token === null || $token === '') return $this->back('/login/' . $role, 'info', 'Your session ended. Please log in again.');
+        if ($token === null || $token === '') return $json ? Response::json(['ok' => false, 'error_code' => 'unauthorized'], 401) : $this->back('/login/' . $role, 'info', 'Your session ended. Please log in again.');
         try {
             $parameters = $params($user);
         } catch (InvalidArgumentException) {
-            return $this->back($back, 'error', 'Check the form and try again.');
+            return $fail('Check the form and try again.', 422, 'validation');
         }
         try {
             $result = $this->db->rpc($function, $parameters, $token);
         } catch (Throwable $error) {
             error_log('Live action failed: ' . $function . ' ' . $error::class);
-            return $this->back($back, 'error', self::forbidden($error) ? 'You cannot do that.' : 'We could not confirm this action. Please try again; it will not be done twice.');
+            return self::forbidden($error) ? $fail('You cannot do that.', 403, 'forbidden') : $fail('We could not confirm this action. Please try again; it will not be done twice.', 503, 'unavailable');
         }
         if (($result['ok'] ?? false) !== true) {
+            if ($json) return Response::json(['ok' => false, 'error_code' => $result['error_code'] ?? 'error', 'message' => self::message($result)], 422);
             $_SESSION['form_errors'] = array_filter(is_array($result['field_errors'] ?? null) ? $result['field_errors'] : [], 'is_string');
             return $this->back($back, 'error', self::message($result));
         }
         unset($_SESSION['form_errors']);
-        [$type, $message, $path] = $done(is_array($result['data'] ?? null) ? $result['data'] : []);
-        return $this->back($path ?? $back, $type, $message);
+        $data = is_array($result['data'] ?? null) ? $result['data'] : [];
+        [$type, $message, $path] = $done($data);
+        return $json ? Response::json(['ok' => true, 'data' => $data, 'message' => $message]) : $this->back($path ?? $back, $type, $message);
     }
 
     /** JSON read endpoint for polling. $read gets [user, token] and returns the response body. */

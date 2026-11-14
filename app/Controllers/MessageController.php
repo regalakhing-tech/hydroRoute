@@ -46,8 +46,14 @@ final class MessageController extends LiveController
             if (($result['ok'] ?? false) !== true) return ['ok' => false, 'error_code' => 'not_found'];
             return ['ok' => true, 'data' => ['messages' => array_map(static fn (array $m): array => [
                 'id' => $m['id'], 'created_at' => $m['created_at'], 'body' => $m['body'], 'kind' => $m['kind'], 'mine' => (bool) $m['mine'],
-                'time' => \App\UI\OrderStatus::time($m['created_at'], 'M j, g:i A'), 'order_no' => $m['order_no'],
-            ], $result['data']['messages'])]];
+                'time' => \App\UI\OrderStatus::time($m['created_at'], 'M j, g:i A'), 'order_no' => $m['order_no'], 'order_id' => $m['order_id'] ?? null,
+                'reservation' => isset($m['reservation']['id']) ? ['id' => $m['reservation']['id'], 'state' => $m['reservation']['state'], 'version' => $m['reservation']['version'],
+                    'when' => \App\UI\OrderStatus::time($m['reservation']['requested_at'], 'D M j, g:i A'), 'fulfillment' => $m['reservation']['fulfillment'],
+                    'items' => implode(', ', array_map(static fn (array $i): string => $i['quantity'] . ' × ' . $i['name'], $m['reservation']['items'])),
+                    'note' => $m['reservation']['note'], 'reason' => $m['reservation']['decision_reason'], 'order_no' => $m['reservation']['order_no']] : null,
+            ], $result['data']['messages']),
+                // First load of a thread also carries the header line and, for customers, the reservation form choices.
+                'status' => $result['data']['conversation']['availability']['label'] ?? '', 'products' => $result['data']['products'] ?? null, 'addresses' => $result['data']['addresses'] ?? null]];
         });
     }
 

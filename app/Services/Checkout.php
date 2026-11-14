@@ -23,13 +23,15 @@ final class Checkout
     public static function form(array $input): array
     {
         $text = static fn (string $key, int $max): string => is_string($input[$key] ?? null) ? trim(mb_substr($input[$key], 0, $max)) : '';
-        $address = $text('address_id', 36);
+        // The checkout page uses the original field names (address, delivery, date, time, notes); both spellings are accepted.
+        $address = $text('address_id', 36) ?: $text('address', 36);
+        $when = $text('requested_at', 16) ?: ($text('date', 10) !== '' && $text('time', 5) !== '' ? $text('date', 10) . 'T' . $text('time', 5) : '');
         return [
             'fulfillment' => $text('fulfillment', 10) === 'pickup' ? 'pickup' : 'delivery',
             'address_id' => preg_match(self::UUID, $address) === 1 ? strtolower($address) : '',
-            'schedule' => $text('schedule', 10) === 'scheduled' ? 'scheduled' : 'asap',
-            'requested_at' => preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/D', $text('requested_at', 16)) === 1 ? $text('requested_at', 16) : '',
-            'note' => $text('note', 200),
+            'schedule' => ($text('schedule', 10) ?: $text('delivery', 10)) === 'scheduled' ? 'scheduled' : 'asap',
+            'requested_at' => preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/D', $when) === 1 ? $when : '',
+            'note' => $text('note', 200) ?: $text('notes', 200),
         ];
     }
 

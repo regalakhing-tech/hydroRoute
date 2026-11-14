@@ -1,63 +1,58 @@
 <?php
+// The original chat design (shared/messages.php), driven by real conversations through live-chat.js.
 use App\Core\Session;
 use App\Services\Workspace;
-use App\UI\LiveForm as F;
-use App\UI\OrderStatus as S;
 use App\UI\UI as U;
 
 $role = $data['role'];
 $isStation = $role === 'station-admin';
-$filters = ['search' => is_string($_GET['q'] ?? null) ? mb_substr(trim($_GET['q']), 0, 80) : '', 'topic' => in_array($_GET['topic'] ?? '', ['general', 'reservation', 'order', 'delivery'], true) ? $_GET['topic'] : '', 'unread' => isset($_GET['unread'])];
-$inbox = Workspace::get()->load(static fn (Workspace $w): array => $w->inbox($isStation, $filters));
-$list = $inbox['conversations'] ?? [];
-$openId = is_string($_GET['conversation'] ?? null) ? $_GET['conversation'] : null;
-// Deep links: a station page opens the customer's thread with that station; an order page opens the thread with that customer.
-foreach ($list as $c) {
-    if ($openId === null && !$isStation && ($c['station_id'] === ($_GET['station'] ?? null))) $openId = $c['id'];
-    if ($openId === null && $isStation && ($c['customer_id'] === ($_GET['customer'] ?? null))) $openId = $c['id'];
+$inbox = Workspace::get()->load(static fn (Workspace $w): array => $w->inbox($isStation, []));
+$initials = static function (string $name): string {
+    $words = preg_split('/\s+/u', trim($name), -1, PREG_SPLIT_NO_EMPTY) ?: ['?'];
+    return mb_strtoupper(mb_substr($words[0], 0, 1) . (isset($words[1]) ? mb_substr($words[1], 0, 1) : ''));
+};
+$threads = array_map(static fn (array $c): array => ['id' => $c['id'], 'station' => $c['station_id'], 'customer' => $c['customer_id'], 'name' => $c['name'],
+    'initials' => $initials($c['name']), 'subtitle' => $isStation ? 'Customer' : 'Water station', 'last' => (string) ($c['last_body'] ?? ''),
+    'last_mine' => (bool) $c['last_mine'], 'unread' => (int) $c['unread']], $inbox['conversations'] ?? []);
+$pending = null;
+$wanted = is_string($_GET['station'] ?? null) ? $_GET['station'] : '';
+if (!$isStation && $wanted !== '' && !array_filter($threads, static fn (array $t): bool => $t['station'] === $wanted)) {
+    foreach (Workspace::get()->load(static fn (Workspace $w): array => $w->directory())['stations'] ?? [] as $s) {
+        if ($s['uuid'] === $wanted || $s['id'] === $wanted) $pending = ['station' => $s['uuid'], 'name' => $s['name'], 'initials' => $initials($s['name'])];
+    }
 }
-$thread = $openId ? Workspace::get()->load(static fn (Workspace $w): array => $w->thread($openId)) : null;
-$errors = is_array($_SESSION['form_errors'] ?? null) ? $_SESSION['form_errors'] : []; unset($_SESSION['form_errors']);
-$topics = ['general' => 'General', 'order' => 'Order', 'delivery' => 'Delivery', 'reservation' => 'Reservation'];
-$stateTone = ['requested' => 'amber', 'accepted' => 'green', 'declined' => 'red', 'cancelled' => 'gray', 'expired' => 'gray'];
-$here = '/' . $role . '/messages';
+$base = '/' . $role . '/messages';
+$chat = ['live' => true, 'role' => $role, 'threads' => $threads, 'pending' => $pending, 'token' => Session::csrfToken(), 'error' => $inbox['error'] ?? null,
+    'urls' => ['send' => $base . '/send', 'thread' => $base . '/thread', 'read' => $base . '/read', 'start' => '/customer/messages/start', 'reserve' => '/customer/reservations', 'respond' => '/station-admin/reservations/respond']];
 ?>
-<div class="mx-auto max-w-[1600px] px-4 py-5 sm:px-6 lg:px-8">
-<?= U::heading('Messages', $isStation ? 'Conversations with your customers. Replies and reservation decisions appear to the customer right away.' : 'Chat with stations and request reservations.') ?>
-<div class="grid gap-5 lg:grid-cols-[340px_minmax(0,1fr)]">
-<aside class="panel h-fit p-4"><form method="get" action="<?= U::e($here) ?>" class="space-y-2"><?= U::field('Search', 'q', $filters['search'], 'search', ['icon' => 'search', 'placeholder' => $isStation ? 'Customer or message' : 'Station or message']) ?><div class="flex items-end gap-2"><div class="flex-1"><?= U::select('Topic', 'topic', ['' => 'All topics'] + $topics, $filters['topic']) ?></div><label class="mb-2 flex items-center gap-1 text-sm"><input type="checkbox" name="unread" value="1" <?= $filters['unread'] ? 'checked' : '' ?> class="accent-cyan-600">Unread</label></div><?= U::btn('Filter', '', 'secondary', 'filter', ['type' => 'submit', 'class' => 'btn-sm w-full']) ?></form>
-<?php if (isset($inbox['error'])): ?><p class="mt-4 text-sm" role="alert"><?= U::e($inbox['error']) ?></p><?php elseif ($list === []): ?><p class="mt-4 text-sm text-muted"><?= $isStation ? 'No conversations yet. Customers start them from your station page.' : 'No conversations yet. Open a station and choose Message station.' ?></p><?php endif ?>
-<nav class="mt-4 space-y-1" aria-label="Conversations"><?php foreach ($list as $c): ?><a href="<?= U::e($here . '?conversation=' . $c['id']) ?>" class="flex items-start gap-3 rounded-lg p-2.5 hover:bg-foam <?= $c['id'] === $openId ? 'bg-foam' : '' ?>"<?= $c['id'] === $openId ? ' aria-current="true"' : '' ?>><?= U::avatar(mb_strtoupper(mb_substr($c['name'], 0, 1))) ?><span class="min-w-0 flex-1"><span class="flex justify-between gap-2"><strong class="truncate"><?= U::e($c['name']) ?></strong><span class="shrink-0 text-xs text-muted"><?= U::e(S::time($c['last_at'], 'M j')) ?></span></span><span class="block truncate text-sm text-muted"><?= $c['last_mine'] ? 'You: ' : '' ?><?= U::e($c['last_body'] ?? 'No messages yet') ?></span></span><?php if ($c['unread'] > 0): ?><span class="rounded-full bg-water px-2 py-0.5 text-xs font-bold text-white"><?= (int) $c['unread'] ?><span class="sr-only"> unread</span></span><?php endif ?></a><?php endforeach ?></nav>
-<?php if (!$isStation && is_string($_GET['station'] ?? null) && $openId === null): ?><div class="mt-4 rounded-lg bg-foam p-3 text-sm"><p class="mb-2">Start a conversation with this station.</p><?= F::open('/customer/messages/start', ['station_id' => $_GET['station']]) ?><?= U::btn('Start conversation', '', 'primary', 'message', ['type' => 'submit', 'class' => 'btn-sm']) ?></form></div><?php endif ?>
-<p class="mt-4 text-xs text-muted">Messages are plain text, up to 2,000 characters, 20 per minute.</p></aside>
-<section class="panel flex min-h-[60vh] flex-col p-0" aria-label="Conversation">
-<?php if ($thread === null): ?><p class="m-auto p-8 text-center text-muted"><?= $isStation && isset($_GET['customer']) ? 'This customer has not started a conversation with your station yet.' : 'Choose a conversation.' ?></p>
-<?php elseif (isset($thread['error']) || isset($thread['error_code'])): ?><p class="m-auto p-8 text-center" role="alert">That conversation is not available.</p>
-<?php else: $conv = $thread['conversation']; $msgs = $thread['messages']; $lastMsg = end($msgs) ?: null; $av = $conv['availability']; ?>
-<header class="flex items-center gap-3 border-b border-line p-4"><?= U::avatar(mb_strtoupper(mb_substr($isStation ? $conv['customer_name'] : $conv['station_name'], 0, 1))) ?><div class="min-w-0 flex-1"><h2 class="truncate text-lg font-bold"><?= U::e($isStation ? $conv['customer_name'] : $conv['station_name']) ?></h2><p class="text-xs text-muted"><?= $isStation ? 'Customer' : U::e($av['label'] ?? '') ?></p></div></header>
-<?php if (!$isStation && empty($av['accepting_asap'])): ?><p class="border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900" role="status">The station is closed<?= ($av['public_notice'] ?? '') !== '' ? ': ' . U::e($av['public_notice']) : '' ?>. Replies may be delayed<?= !empty($av['next_open_at']) ? '; it opens ' . U::e(S::time($av['next_open_at'], 'D M j, g:i A')) : '' ?>.</p><?php endif ?>
-<div class="flex-1 space-y-3 overflow-y-auto p-4" role="log" aria-live="polite" data-chat-log data-thread-url="<?= U::e($here . '/thread?conversation=' . $conv['id']) ?>" data-read-url="<?= U::e($here . '/read') ?>" data-conversation="<?= U::e($conv['id']) ?>" data-token="<?= U::e(Session::csrfToken()) ?>" data-after-id="<?= U::e($lastMsg['id'] ?? '') ?>" data-after-created="<?= U::e($lastMsg['created_at'] ?? '') ?>" data-unread="<?= $lastMsg && !$lastMsg['mine'] ? '1' : '0' ?>">
-<?php if ($msgs === []): ?><p class="text-center text-sm text-muted" data-chat-empty>No messages yet. Say hello.</p><?php endif ?>
-<?php foreach ($msgs as $m): if ($m['kind'] === 'text'): ?>
-<div class="flex <?= $m['mine'] ? 'justify-end' : '' ?>"><div class="max-w-[80%] rounded-2xl px-4 py-2.5 <?= $m['mine'] ? 'bg-water text-white' : 'bg-mist' ?>"><p class="whitespace-pre-wrap break-words text-sm"><?= U::e($m['body']) ?></p><p class="mt-1 text-[11px] <?= $m['mine'] ? 'text-white/80' : 'text-muted' ?>"><?= U::e(S::time($m['created_at'], 'M j, g:i A')) ?><?= $m['topic'] !== 'general' ? ' · ' . U::e($topics[$m['topic']]) : '' ?><?= $m['order_no'] ? ' · <a class="underline" href="' . U::e($isStation ? '/station-admin/orders?order=' . $m['order_id'] : '/customer/tracking?order=' . $m['order_id']) . '">' . U::e($m['order_no']) . '</a>' : '' ?></p></div></div>
-<?php else: $r = $m['reservation']; ?>
-<div class="mx-auto w-full max-w-md rounded-xl border border-line bg-white p-3 text-sm"><p class="text-xs text-muted"><?= U::e(S::time($m['created_at'], 'M j, g:i A')) ?></p><p class="font-semibold"><?= U::e($m['body']) ?></p>
-<?php if ($r !== null && $m['kind'] === 'reservation'): ?><div class="mt-2 rounded-lg bg-foam p-2"><p class="flex items-center justify-between gap-2"><span><?= U::e(S::time($r['requested_at'], 'D M j, g:i A')) ?> · <?= $r['fulfillment'] === 'pickup' ? 'Pickup' : 'Delivery' ?></span><?= U::badge(ucfirst($r['state']), $stateTone[$r['state']] ?? 'gray') ?></p><ul class="mt-1"><?php foreach ($r['items'] as $i): ?><li><?= (int) $i['quantity'] ?> × <?= U::e($i['name']) ?></li><?php endforeach ?></ul><?php if ($r['address']): ?><p class="text-muted"><?= U::e($r['address']) ?></p><?php endif ?><?php if ($r['note'] !== ''): ?><p class="text-muted">Note: <?= U::e($r['note']) ?></p><?php endif ?><?php if ($r['order_no']): ?><p class="mt-1">Order: <a class="font-semibold text-water" href="<?= U::e($isStation ? '/station-admin/orders?order=' . $r['order_id'] : '/customer/tracking?order=' . $r['order_id']) ?>"><?= U::e($r['order_no']) ?></a></p><?php endif ?>
-<?php if ($r['state'] === 'requested' && $isStation): ?><div class="mt-2 space-y-2"><?= F::button('/station-admin/reservations/respond', ['reservation_id' => $r['id'], 'expected_version' => $r['version'], 'conversation_id' => $conv['id'], 'decision' => 'accept'], 'Accept and create order', 'primary', 'check', 'Accept? This creates a scheduled order at today\'s prices.') ?><?= F::reason('/station-admin/reservations/respond', ['reservation_id' => $r['id'], 'expected_version' => $r['version'], 'conversation_id' => $conv['id'], 'decision' => 'decline'], 'Reason to decline', 'Fully booked that day', 'Decline') ?></div>
-<?php elseif ($r['state'] === 'requested'): ?><div class="mt-2"><?= F::button('/customer/reservations/cancel', ['reservation_id' => $r['id'], 'expected_version' => $r['version'], 'conversation_id' => $conv['id']], 'Cancel request', 'secondary', 'close', 'Cancel this reservation request?') ?></div><?php endif ?></div><?php endif ?></div>
-<?php endif; endforeach ?>
-</div>
-<p data-chat-notice class="hidden border-t border-line bg-foam px-4 py-2 text-sm" role="status"></p>
-<div class="border-t border-line p-4">
-<?= F::open($here . '/send', ['conversation_id' => $conv['id']], ['class' => 'space-y-2']) ?><label class="sr-only" for="chat-body">Message</label><textarea id="chat-body" name="body" rows="2" maxlength="2000" required class="field resize-y" placeholder="Write a message…"></textarea><?= isset($errors['body']) ? '<p class="text-sm text-rose-700" role="alert">' . U::e($errors['body']) . '</p>' : '' ?>
-<div class="flex flex-wrap items-end gap-2"><div class="w-36"><?= U::select('Topic', 'topic', $topics, 'general') ?></div><?php if ($thread['orders'] !== []): ?><div class="w-44"><?= U::select('Link an order', 'order_id', ['' => 'No order'] + array_column($thread['orders'], 'order_no', 'id'), '') ?></div><?php endif ?><?= U::btn('Send', '', 'primary', 'send', ['type' => 'submit']) ?></div></form>
-<?php if ($lastMsg && !$lastMsg['mine']): ?><?= F::open($here . '/read', ['conversation_id' => $conv['id'], 'message_id' => $lastMsg['id']], ['class' => 'mt-2', 'data-no-js-read' => true]) ?><button type="submit" class="text-sm font-semibold text-muted">Mark as read</button></form><?php endif ?>
-<?php if (!$isStation): $addresses = array_filter($thread['addresses'] ?? [], static fn (array $a): bool => $a['pinned']); ?>
-<details class="mt-3 rounded-lg border border-line p-3"><summary class="cursor-pointer font-semibold text-water">Request a reservation</summary><p class="mt-2 text-sm text-muted">For a later date, a bigger order or an event. The station accepts, declines or replies; accepting creates a scheduled order at its current prices.</p>
-<?= F::open('/customer/reservations', ['station_id' => $conv['station_id'], 'conversation_id' => $conv['id']], ['class' => 'mt-3 space-y-3']) ?><div class="grid gap-3 sm:grid-cols-2"><?= U::field('Date and time', 'requested_at', '', 'datetime-local', ['required' => true, 'id' => 'res-time']) ?><fieldset><legend class="label">Delivery or pickup</legend><div class="flex gap-4 pt-2"><label class="flex items-center gap-2"><input type="radio" name="fulfillment" value="pickup" checked class="accent-cyan-600">Pickup</label><label class="flex items-center gap-2"><input type="radio" name="fulfillment" value="delivery" class="accent-cyan-600" <?= $addresses === [] ? 'disabled' : '' ?>>Delivery</label></div></fieldset></div>
-<?php if ($addresses !== []): ?><div data-show-when="fulfillment=delivery"><?= U::select('Delivery address', 'address_id', array_column(array_map(static fn (array $a): array => ['id' => $a['id'], 'l' => $a['label'] . ' — ' . $a['address']], $addresses), 'l', 'id'), '', ['id' => 'res-address']) ?></div><?php endif ?>
-<div class="grid gap-2 sm:grid-cols-2"><?php foreach ($thread['products'] ?? [] as $p): ?><label class="flex items-center justify-between gap-2 rounded-lg border border-line p-2 text-sm"><span><?= U::e($p['name']) ?> <span class="text-muted"><?= S::pesos($p['price_centavos']) ?></span></span><input type="number" name="qty[<?= U::e($p['id']) ?>]" min="0" max="9999" value="0" class="field w-20 py-1 text-center" aria-label="<?= U::e($p['name']) ?> quantity"></label><?php endforeach ?></div>
-<?= U::textarea('Note', 'note', '', ['maxlength' => '500', 'id' => 'res-note', 'placeholder' => 'Event details or questions']) ?><?= U::btn('Send reservation request', '', 'secondary', 'calendar', ['type' => 'submit']) ?></form></details>
+<section data-chat-root data-chat-live class="overflow-hidden md:bg-white">
+    <script type="application/json" data-chat-live-seed><?= json_encode($chat, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR) ?></script>
+    <div class="grid grid-cols-[minmax(0,1fr)] md:h-[calc(100dvh-120px)] md:min-h-[480px] md:grid-cols-[320px_minmax(0,1fr)] lg:h-dvh xl:grid-cols-[360px_minmax(0,1fr)]">
+        <aside data-chat-list-pane class="scroll-thin min-w-0 px-4 pb-6 pt-4 md:overflow-y-auto md:border-r md:border-line md:p-0">
+            <div class="pb-2 md:sticky md:top-0 md:z-10 md:border-b md:border-line md:bg-white md:p-4"><h1 class="mb-3 flex items-center gap-2.5 font-heading text-xl font-bold tracking-tight md:text-2xl"><span class="title-icon"><?= U::icon('message','size-5') ?></span>Messages</h1><label for="chat-search" class="sr-only">Search conversations</label><div class="relative"><?= U::icon('search','pointer-events-none absolute left-4 top-1/2 size-4.5 -translate-y-1/2 text-muted') ?><input id="chat-search" type="search" placeholder="Search conversations" class="min-h-11 w-full rounded-full border border-line bg-white py-2.5 pl-11 pr-4 text-sm outline-none focus:border-water focus:ring-2 focus:ring-water/20 md:bg-mist" autocomplete="off"></div></div>
+            <div data-chat-threads class="-mx-2 md:mx-0 md:p-2" aria-label="Conversations"></div><p data-chat-no-results hidden class="p-6 text-center text-sm text-muted"><?= $isStation ? 'No conversations yet. Customers start them from your station page.' : 'No conversations yet. Open a station and choose Message station.' ?></p>
+        </aside>
+        <div data-chat-pane class="flex min-h-0 min-w-0 flex-col bg-mist/40 max-md:fixed max-md:inset-0 max-md:z-40 max-md:bg-mist">
+            <header class="flex items-center gap-3 border-b border-line bg-white px-3 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] md:px-6 md:py-4"><button data-chat-back type="button" class="rounded-lg p-2 text-water hover:bg-foam md:hidden" aria-label="Back to conversations"><?= U::icon('back','size-5') ?></button><span data-chat-avatar class="flex size-11 shrink-0 items-center justify-center rounded-full bg-water text-sm font-bold text-white"></span><div class="min-w-0 flex-1"><h2 data-chat-name class="truncate font-heading text-lg font-bold"></h2><p data-chat-subtitle class="flex items-center gap-1.5 text-xs text-muted"></p></div><?php if (!$isStation): ?><button type="button" data-chat-reserve class="rounded-full p-2.5 text-water hover:bg-foam" aria-label="Request a reservation" title="Request a reservation"><?= U::icon('calendar','size-5') ?></button><?php endif ?></header>
+            <div data-chat-context class="border-b border-line bg-mist px-4 py-2 md:px-6"></div>
+            <div data-chat-invalid hidden class="border-b border-line bg-amber-50 px-5 py-3 text-sm" role="status">That conversation is unavailable. Choose a conversation from your inbox.</div>
+            <div data-chat-messages class="scroll-thin flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-4 py-5 md:px-7 md:py-6" role="log" aria-label="Conversation messages" aria-live="polite" aria-relevant="additions"></div>
+            <div class="border-t border-line bg-white px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 md:p-4 md:px-6"><form data-chat-form><label for="chat-body" class="sr-only">Message</label><div class="flex items-end gap-2"><div class="relative flex-1"><textarea id="chat-body" rows="1" maxlength="2000" placeholder="Write a message…" class="block max-h-32 min-h-11 w-full resize-none rounded-3xl border border-line bg-mist px-4 py-3 text-sm outline-none focus:border-water focus:ring-2 focus:ring-water/20"></textarea></div><button data-chat-emoji-toggle type="button" aria-label="Choose an emoji" aria-expanded="false" aria-controls="chat-emojis" class="rounded-full p-3 text-water hover:bg-foam"><?= U::icon('emoji','size-5') ?></button><button data-chat-send type="submit" aria-label="Send message" class="rounded-full bg-water p-3 text-white shadow-md shadow-water/30 transition hover:brightness-95 disabled:opacity-40 disabled:shadow-none"><?= U::icon('send','size-5') ?></button></div><div id="chat-emojis" hidden class="mt-2 flex gap-1" aria-label="Emoji choices"><?php foreach (['😊','👍','💧','🙏','✅'] as $emoji): ?><button type="button" data-chat-emoji="<?= U::e($emoji) ?>" aria-label="Insert <?= U::e($emoji) ?>" class="rounded-lg p-2 text-xl hover:bg-foam"><?= U::e($emoji) ?></button><?php endforeach ?></div><div class="mt-2 flex justify-between gap-3 text-xs text-muted"><span data-chat-feedback role="status">Enter to send · Shift + Enter for a new line</span><span data-chat-count>0 / 2000</span></div></form></div>
+        </div>
+    </div>
+</section>
+<?php if (!$isStation): ?>
+<dialog id="reservation-dialog" class="w-full max-w-lg rounded-xl border border-line p-6 text-ink" aria-labelledby="reservation-title">
+    <div class="mb-3 flex justify-between"><h2 id="reservation-title" class="section-title">Request a reservation</h2><button type="button" data-dialog-close aria-label="Close"><?= U::icon('close') ?></button></div>
+    <p class="mb-4 text-sm text-muted">For a later date, a bigger order or an event. The station accepts, declines or replies in this chat; accepting creates a scheduled order at its current prices.</p>
+    <form method="post" action="/customer/reservations" class="space-y-3" data-reservation-form>
+        <input type="hidden" name="_token" value="<?= U::e(Session::csrfToken()) ?>"><input type="hidden" name="request_key" value=""><input type="hidden" name="station_id" value=""><input type="hidden" name="conversation_id" value="">
+        <?= U::field('Date and time', 'requested_at', '', 'datetime-local', ['required' => true, 'id' => 'reservation-time']) ?>
+        <fieldset><legend class="label">Delivery or pickup</legend><div class="flex gap-4 pt-1"><label class="flex items-center gap-2 text-sm"><input type="radio" name="fulfillment" value="pickup" checked class="accent-cyan-600">Pickup</label><label class="flex items-center gap-2 text-sm"><input type="radio" name="fulfillment" value="delivery" class="accent-cyan-600">Delivery</label></div></fieldset>
+        <div><label class="label" for="reservation-address">Delivery address</label><select class="field" id="reservation-address" name="address_id" data-reservation-addresses></select></div>
+        <div class="grid gap-2 sm:grid-cols-2" data-reservation-products></div>
+        <?= U::textarea('Note', 'note', '', ['maxlength' => '500', 'id' => 'reservation-note', 'placeholder' => 'Event details or questions']) ?>
+        <?= U::btn('Send reservation request', '', 'primary', 'calendar', ['type' => 'submit', 'class' => 'w-full']) ?>
+    </form>
+</dialog>
 <?php endif ?>
-</div>
-<?php endif ?></section></div></div>

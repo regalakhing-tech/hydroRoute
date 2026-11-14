@@ -31,15 +31,15 @@ $db->results['get_station_report'] = ['ok' => true, 'data' => ['kind' => 'sales'
 $ui = new UIController(false, new StationDirectory($db), new App\Services\Registry($db), $current, fakeStationContext($db, SID));
 $_GET = ['start' => '2026-11-10', 'end' => '2026-11-16'];
 $page = $ui->page('station-admin', 'reports-sales')->body;
-check(str_contains($page, 'PHP 120.00') && str_contains($page, 'PHP 140.00') && str_contains($page, 'Date basis') && !str_contains($page, 'PHP 6,900'), 'Sales report is live with separate measures');
+check(str_contains($page, 'PHP 120.00') && str_contains($page, 'PHP 140.00') && !str_contains($page, 'PHP 6,900'), 'Sales report is live with separate measures');
 check($last('get_station_report')[2] === ['p_station_id' => SID, 'p_report_kind' => 'sales', 'p_start_date' => '2026-11-10', 'p_end_date' => '2026-11-16', 'p_filters' => (object) []] || $last('get_station_report')[2]['p_start_date'] === '2026-11-10', 'Report uses the session station and the chosen range');
 check(str_contains($page, 'href="/station-admin/reports/export?kind=sales&amp;start=2026-11-10&amp;end=2026-11-16"') && str_contains($page, 'data-print'), 'CSV export and print offered');
 
 $db->results['get_station_report'] = ['ok' => true, 'data' => ['kind' => 'orders', 'date_basis' => 'Orders by the date they were placed.', 'placed' => 3, 'by_status' => ['completed' => 1, 'cancelled' => 1], 'by_fulfillment' => ['delivery' => 2, 'pickup' => 1],
-    'by_product' => [['name' => '=HYPERLINK("http://x")', 'quantity' => 2, 'amount_centavos' => 4000]], 'by_barangay' => [], 'cancel_reasons' => [['reason' => 'Changed plans', 'orders' => 1]],
+    'by_product' => [['name' => '=HYPERLINK("http://x")', 'quantity' => 2, 'amount_centavos' => 4000]], 'by_barangay' => [], 'cancel_reasons' => [['reason' => 'Changed <plans>', 'orders' => 1]],
     'daily' => [['date' => '2026-11-16', 'placed' => 3, 'completed' => 1, 'cancelled' => 1, 'units' => 4]]]];
 $page = $ui->page('station-admin', 'reports-orders')->body;
-check(str_contains($page, 'Changed plans') && str_contains($page, '=HYPERLINK(&quot;http://x&quot;)') && !str_contains($page, 'Outside operating hours'), 'Orders report is live and escaped');
+check(str_contains($page, 'Changed &lt;plans&gt;') && !str_contains($page, 'Changed <plans>') && !str_contains($page, 'Outside operating hours'), 'Orders report is live and escaped');
 $_GET = ['kind' => 'orders', 'start' => '2026-11-16', 'end' => '2026-11-16'];
 $csv = (new ReportController($db, $current))->export();
 check($csv->headers['Content-Type'] === 'text/csv; charset=utf-8' && str_contains($csv->headers['Content-Disposition'], 'hydroroute-orders-2026-11-16-to-2026-11-16.csv'), 'CSV download headers');

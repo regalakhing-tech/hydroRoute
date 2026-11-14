@@ -1,7 +1,7 @@
 (() => {
     'use strict';
     const root = document.querySelector('[data-chat-root]');
-    if (!root) return;
+    if (!root || root.hasAttribute('data-chat-live')) return; // live pages use live-chat.js
     let seed;
     try { seed = JSON.parse(root.querySelector('[data-chat-seed]').textContent); } catch { return; }
     const q = selector => root.querySelector(selector);

@@ -13,7 +13,7 @@ use Throwable;
 /** Customer account and address book (Phase 3). Writes go through RPCs; password and sign-out go through Supabase Auth. */
 final class CustomerController extends LiveController
 {
-    public function __construct(Gateway $db, CurrentUser $current, private readonly AuthProvider $auth)
+    public function __construct(Gateway $db, CurrentUser $current, private readonly AuthProvider $auth, private readonly ?\App\Services\Geocoder $geocoder = null)
     {
         parent::__construct($db, $current);
     }
@@ -24,12 +24,13 @@ final class CustomerController extends LiveController
             static function (): array {
                 $phone = Signup::phone($_POST['phone'] ?? null);
                 if ($phone === null) throw new \InvalidArgumentException('phone');
-                return ['p_payload' => ['display_name' => self::input('display_name', 120), 'phone' => $phone,
+                $name = self::input('display_name', 120) ?: trim(self::input('first_name', 60) . ' ' . self::input('last_name', 60));
+                return ['p_payload' => ['display_name' => $name, 'phone' => $phone,
                     'order_updates' => isset($_POST['order_updates']) ? 'true' : 'false', 'station_updates' => isset($_POST['station_updates']) ? 'true' : 'false'],
                     'p_expected_version' => self::version($_POST['expected_version'] ?? null), 'p_request_key' => self::uuid($_POST['request_key'] ?? null)];
             },
             static function (array $d): array {
-                $_SESSION['user']['name'] = self::input('display_name', 120);
+                $_SESSION['user']['name'] = self::input('display_name', 120) ?: trim(self::input('first_name', 60) . ' ' . self::input('last_name', 60));
                 return ['success', 'Profile saved.', null];
             });
     }
@@ -97,6 +98,20 @@ final class CustomerController extends LiveController
                     'p_expected_version' => $id === '' ? null : self::version($_POST['expected_version'] ?? null), 'p_request_key' => self::uuid($_POST['request_key'] ?? null)];
             },
             static fn (): array => ['success', 'Address saved.', '/customer/addresses']);
+    }
+
+    /** GET /customer/addresses/reverse?lat=&lng=: street suggestion for a pin inside Hamtic. */
+    public function reverse(): Response
+    {
+        return $this->json('customer', function (): array {
+            $lat = filter_var($_GET['lat'] ?? null, FILTER_VALIDATE_FLOAT);
+            $lng = filter_var($_GET['lng'] ?? null, FILTER_VALIDATE_FLOAT);
+            if ($lat === false || $lng === false || $lat < 10.584854 || $lat > 10.746484 || $lng < 121.961241 || $lng > 122.07373) {
+                throw new \InvalidArgumentException('outside');
+            }
+            if ($this->geocoder === null) return ['ok' => false, 'error_code' => 'unavailable'];
+            return ['ok' => true, 'data' => $this->geocoder->reverse($lat, $lng)];
+        });
     }
 
     public function deleteAddress(): Response

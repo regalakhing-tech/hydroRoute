@@ -20,36 +20,101 @@
     $$('form').filter(f => $('[data-show-when]', f)).forEach(form => { syncShown(form); form.addEventListener('change', () => syncShown(form)); });
     $$('[data-no-js-only]').forEach(el => { el.hidden = true; });
 
-    // Address pin picker (Leaflet when loaded; typed coordinates always work). Bounds match the database check (D8).
+    // Address pin picker. Tiles need a Referer for OpenStreetMap's tile policy (the site default sends none).
+    // The barangay is detected locally from Hamtic boundaries; a street suggestion comes from the server.
     const pinForm = $('form[data-pin-picker]');
     if (pinForm) {
         const lat = pinForm.elements.namedItem('latitude'), lng = pinForm.elements.namedItem('longitude'), source = pinForm.elements.namedItem('pin_source');
+        const street = pinForm.elements.namedItem('street'), barangay = pinForm.elements.namedItem('barangay_id');
         const status = $('[data-pin-status]', pinForm), device = $('[data-pin-device]', pinForm);
         const b = {south: 10.584854, north: 10.746484, west: 121.961241, east: 122.07373};
         const inside = (y, x) => Number.isFinite(y) && Number.isFinite(x) && y >= b.south && y <= b.north && x >= b.west && x <= b.east;
-        let map = null, marker = null;
-        const show = (y, x) => { if (!map) return; marker ? marker.setLatLng([y, x]) : (marker = window.L.circleMarker([y, x], {radius: 9, color: '#075985', fillColor: '#0ea5e9', fillOpacity: 1, weight: 3}).addTo(map)); map.panTo([y, x]); };
-        const choose = (y, x, how) => {
-            if (!inside(y, x)) { status.textContent = 'That point is outside Hamtic. Choose a point inside the municipality.'; return; }
-            lat.value = y.toFixed(7); lng.value = x.toFixed(7); source.value = how; show(y, x);
-            status.textContent = 'Pin placed. Save the address to keep it.';
+        const say = text => { status.textContent = text; };
+        let map = null, marker = null, ring = null, boundaries = null, lookup = 0;
+        const inRing = (x, y, pts) => {
+            let hit = false;
+            for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+                const [xi, yi] = pts[i], [xj, yj] = pts[j];
+                if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) hit = !hit;
+            }
+            return hit;
+        };
+        const findBarangay = async (y, x) => {
+            boundaries ??= fetch(pinForm.dataset.boundaries, {credentials: 'same-origin'}).then(r => r.json()).catch(() => ({features: []}));
+            const data = await boundaries;
+            return data.features.find(f => inRing(x, y, f.rings[0]) && !f.rings.slice(1).some(h => inRing(x, y, h))) || null;
+        };
+        const fillFromPin = async (y, x) => {
+            const mine = ++lookup;
+            const found = await findBarangay(y, x);
+            if (mine !== lookup) return;
+            const option = found ? [...barangay.options].find(o => o.dataset.psgc === found.psgc) : null;
+            if (option) { barangay.value = option.value; say('Pin placed in Barangay ' + found.name + '. Check the street details, then save.'); }
+            else say('Pin placed, but it is not inside a Hamtic barangay. Move the pin or choose the barangay yourself.');
+            try {
+                const body = await getJson(pinForm.dataset.reverse + '?' + new URLSearchParams({lat: y.toFixed(7), lng: x.toFixed(7)}));
+                if (mine !== lookup || !body.ok) return;
+                // OpenStreetMap barangay boundaries are more detailed than the bundled outline, so a matching name wins.
+                const norm = t => t.normalize('NFKC').toLowerCase().replace(/[^a-z0-9]/g, '');
+                const osm = [...barangay.options].find(o => o.value && (body.data.areas || []).some(a => norm(a) === norm(o.textContent)));
+                if (osm) { barangay.value = osm.value; say('Pin placed in Barangay ' + osm.textContent + '. Check the street details, then save.'); }
+                if (street.value.trim() !== '' && street.dataset.auto !== 'yes') return;
+                const text = [body.data.street, body.data.place].filter((v, i, all) => v && all.indexOf(v) === i && (!osm || norm(v) !== norm(osm.textContent))).join(', ');
+                if (text) { street.value = text; street.dataset.auto = 'yes'; }
+            } catch { /* the bundled outline result and typed street stay */ }
+        };
+        street.addEventListener('input', () => { street.dataset.auto = 'no'; });
+        const show = (y, x, accuracy = null) => {
+            if (!map) return;
+            if (marker) marker.setLatLng([y, x]);
+            else { marker = window.L.marker([y, x], {draggable: true, title: 'Address pin'}).addTo(map); marker.on('dragend', () => { const p = marker.getLatLng(); choose(p.lat, p.lng, 'map'); }); }
+            if (ring) { ring.remove(); ring = null; }
+            if (accuracy) ring = window.L.circle([y, x], {radius: accuracy, color: '#0ea5e9', weight: 1, fillOpacity: 0.12}).addTo(map);
+            map.setView([y, x], Math.max(map.getZoom(), 17));
+        };
+        const choose = (y, x, how, accuracy = null) => {
+            if (!inside(y, x)) { say('That point is outside Hamtic. Tap the map inside Hamtic to place your pin.'); return false; }
+            lat.value = y.toFixed(7); lng.value = x.toFixed(7); source.value = how; show(y, x, accuracy);
+            fillFromPin(y, x);
+            return true;
         };
         if (window.L) {
             const y0 = Number(lat.value), x0 = Number(lng.value), has = lat.value !== '' && inside(y0, x0);
-            map = window.L.map($('[data-pin-map]', pinForm)).setView(has ? [y0, x0] : [(b.south + b.north) / 2, (b.west + b.east) / 2], has ? 16 : 12);
-            window.L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);
+            map = window.L.map($('[data-pin-map]', pinForm)).setView(has ? [y0, x0] : [10.6975, 122.0326], has ? 17 : 13);
+            window.L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, referrerPolicy: 'strict-origin-when-cross-origin',
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);
             map.on('click', e => choose(e.latlng.lat, e.latlng.lng, 'map'));
             if (has) show(y0, x0);
         } else {
             $('[data-pin-map]', pinForm).hidden = true;
-            status.textContent = 'The map is unavailable. Type the coordinates or use your current location.';
+            say('The map is unavailable. Use your current location or type the coordinates.');
         }
-        [lat, lng].forEach(input => input.addEventListener('input', () => { source.value = 'manual'; if (inside(Number(lat.value), Number(lng.value))) show(Number(lat.value), Number(lng.value)); }));
+        [lat, lng].forEach(input => input.addEventListener('change', () => {
+            const y = Number(lat.value), x = Number(lng.value);
+            if (inside(y, x)) choose(y, x, 'manual'); else if (lat.value && lng.value) say('Those coordinates are outside Hamtic.');
+        }));
+        // Watch the position for up to 20 seconds and keep the most accurate fix; stop early once it is within 20 m.
         if (!navigator.geolocation) device.hidden = true;
         else device.addEventListener('click', () => {
-            status.textContent = 'Waiting for location permission…';
-            navigator.geolocation.getCurrentPosition(p => choose(p.coords.latitude, p.coords.longitude, 'device'),
-                () => { status.textContent = 'Location is unavailable. Tap the map or type the coordinates.'; }, {enableHighAccuracy: true, timeout: 15000, maximumAge: 0});
+            device.disabled = true;
+            say('Finding your location… stay still, outdoors if you can.');
+            let best = null, watch = 0;
+            let done = false;
+            const finish = () => {
+                if (done) return; done = true;
+                navigator.geolocation.clearWatch(watch); clearTimeout(timer); device.disabled = false;
+                if (!best) { say('Location is unavailable. Allow location access, or tap the map.'); return; }
+                const {latitude: y, longitude: x, accuracy} = best.coords, metres = Math.round(accuracy);
+                if (!choose(y, x, 'device', accuracy)) {
+                    say('Your device reports a point outside Hamtic (±' + metres + ' m). Computers often guess location from Wi-Fi; use your phone or tap the map.');
+                } else if (metres > 50) say(status.textContent + ' Location is approximate (±' + metres + ' m): drag the pin to your exact gate.');
+            };
+            const timer = setTimeout(finish, 20000);
+            watch = navigator.geolocation.watchPosition(p => {
+                if (!best || p.coords.accuracy < best.coords.accuracy) best = p;
+                say('Finding your location… ±' + Math.round(best.coords.accuracy) + ' m');
+                if (best.coords.accuracy <= 20) finish();
+            }, () => finish(), {enableHighAccuracy: true, maximumAge: 0, timeout: 20000});
         });
     }
 

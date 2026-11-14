@@ -78,7 +78,7 @@ check($chat->thread('station-admin')->status === 422, 'Bad cursor rejected');
 
 // Page.
 $ui = new UIController(false, new StationDirectory($db), new App\Services\Registry($db), $current, fakeStationContext($db, STN));
-$db->results['list_inbox'] = ['ok' => true, 'data' => ['conversations' => [['id' => CONV, 'station_id' => STN, 'customer_id' => ORD, 'name' => 'Lia Live', 'last_body' => 'Hello', 'last_at' => '2026-11-16T01:00:00+00:00', 'last_mine' => false, 'unread' => 2]]]];
+$db->results['list_inbox'] = ['ok' => true, 'data' => ['conversations' => [['id' => CONV, 'station_id' => STN, 'customer_id' => ORD, 'name' => 'Lia Live', 'last_body' => '<b>Hi</b>', 'last_at' => '2026-11-16T01:00:00+00:00', 'last_mine' => false, 'unread' => 2]]]];
 $db->results['get_messages'] = ['ok' => true, 'data' => ['role' => 'station',
     'conversation' => ['id' => CONV, 'station_id' => STN, 'customer_id' => ORD, 'station_name' => 'Live Station', 'customer_name' => 'Lia Live', 'availability' => ['label' => 'Open now', 'accepting_asap' => true]],
     'messages' => [['id' => MSG, 'body' => '<b>Hi</b>', 'kind' => 'text', 'topic' => 'general', 'created_at' => '2026-11-16T01:00:00+00:00', 'mine' => false, 'order_id' => null, 'order_no' => null, 'reservation' => null],
@@ -87,13 +87,15 @@ $db->results['get_messages'] = ['ok' => true, 'data' => ['role' => 'station',
     'orders' => [], 'products' => null, 'addresses' => null]];
 $_GET = ['conversation' => CONV];
 $page = $ui->page('station-admin', 'messages')->body;
-check(str_contains($page, '&lt;b&gt;Hi&lt;/b&gt;') && !str_contains($page, '<b>Hi</b>'), 'Message bodies are escaped');
-check(str_contains($page, 'action="/station-admin/messages/send"') && str_contains($page, 'action="/station-admin/reservations/respond"') && str_contains($page, 'data-thread-url="/station-admin/messages/thread?conversation=' . CONV . '"'), 'Thread page posts messages, decides reservations and polls');
+$seed = static fn (string $html): array => preg_match('#data-chat-live-seed>(.*?)</script>#s', $html, $m) === 1 ? json_decode($m[1], true) : [];
+check(!str_contains($page, '<b>Hi</b>') && str_contains($page, '\u003Cb\u003EHi') && $seed($page)['threads'][0]['last'] === '<b>Hi</b>', 'Message text is JSON-escaped in the page and inserted with textContent');
+$urls = $seed($page)['urls'] ?? [];
+check(str_contains($page, 'data-chat-live') && $urls['send'] === '/station-admin/messages/send' && $urls['respond'] === '/station-admin/reservations/respond' && $urls['thread'] === '/station-admin/messages/thread' && $seed($page)['threads'][0]['id'] === CONV, 'Live chat posts messages, decides reservations and polls the thread');
 check(!str_contains($page, 'data-chat-seed') && !str_contains($page, 'Maria Santos'), 'Live page never loads the preview chat fixtures');
 $login('customer');
 $db->results['list_inbox'] = ['ok' => true, 'data' => ['conversations' => []]];
 $_GET = ['station' => STN];
 $page = $ui->page('customer', 'messages')->body;
-check(str_contains($page, 'action="/customer/messages/start"'), 'A customer can start a conversation from a station link');
+check(($seed($page)['urls']['start'] ?? '') === '/customer/messages/start' && str_contains($page, 'action="/customer/reservations"'), 'A customer can start a conversation and request a reservation');
 
 echo $checks . " messaging checks passed.\n";

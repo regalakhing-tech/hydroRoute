@@ -18,7 +18,8 @@ return static function (Router $router, Gateway $db, CurrentUser $current): void
     Workspace::boot(new Workspace($db, $current));
 
     // Phase 3: the Supabase client is also the Auth provider (password change, sign-out everywhere).
-    $customer = new CustomerController($db, $current, $db);
+    $customer = new CustomerController($db, $current, $db, new App\Services\Geocoder('HydroRoute/1.0 (water refill ordering, Hamtic, Antique)'));
+    $router->get('/customer/addresses/reverse', [$customer, 'reverse']);
     foreach (['account/profile' => 'saveProfile', 'account/password' => 'changePassword', 'account/logout-all' => 'logoutEverywhere',
         'addresses/save' => 'saveAddress', 'addresses/delete' => 'deleteAddress', 'addresses/default' => 'setDefaultAddress'] as $path => $action) {
         $router->post('/customer/' . $path, [$customer, $action]);

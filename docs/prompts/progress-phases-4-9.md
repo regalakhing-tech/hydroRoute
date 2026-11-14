@@ -136,3 +136,51 @@ Tests:
 
 - `node supabase/tests/reports.mjs`: 24 report and job checks passed.
 - `php tests/reports.php`: 10 report checks passed.
+
+## Phase 9: hardening — done locally; release blocked on Phases 2–3 and the migrations
+
+Done:
+
+- `php tests/live-pages.php` renders all 20 live customer, station-admin and rider pages built here with empty real data: 247 live page checks passed. No page raises a PHP warning, and none shows a sample name (Maria Santos, Ana Dela Cruz, HMT-104, Guintas Water Station, Juan Reyes, and so on).
+- The preview-only confirm dialog ("changes sample data") and the "Orders and trips show sample data" footer no longer appear on live pages.
+- With `APP_PREVIEW=false`, logged-out requests to every new page redirect to the right login, and every JSON endpoint answers 401.
+- `public/assets/css/app.css` is rebuilt with `npm run build:css` for the new classes.
+- `docs/deployment.md` now gives the migration order and the Cron step. The implementation-state table in the system plan is updated.
+- Full test run on this branch:
+
+| Suite | Result |
+| --- | --- |
+| auth | 49 |
+| registry | 59 |
+| session-store | 7 |
+| product-catalog | 16 |
+| orders (PHP) | 29 |
+| operations (PHP) | 32 |
+| messages (PHP) | 15 |
+| reports (PHP) | 10 |
+| live-pages | 247 |
+| SQL orders | 59 |
+| SQL operations | 73 |
+| SQL messaging | 47 |
+| SQL reports and jobs | 24 |
+
+  The preview suites `ui-smoke`, `ui-dom`, `fulfillment-dom`, `messages-dom`, `product-pricing-smoke` and `messages-regressions` all pass.
+
+Still open, in order:
+
+1. **Merge.** Finish Phases 2–3 on `feat/live-station-workflows`, then merge `feat/orders-dispatch-messaging`. Expect small conflicts in these files:
+   - `routes/web.php`: keep both; this branch adds one `require operations.php` line.
+   - `app/Views/layouts/app.php`: keep the station switcher and setup-error block; add this branch's nav badges and drop the sample-data footer sentence.
+   - `app/Views/partials/head.php` and `public/index.php`: keep both script and asset lines.
+   - `app/Controllers/UIController.php`: no change on this branch.
+   - `public/assets/css/app.css`: rebuild after merging.
+   - `docs/superpowers/plans/...` state table.
+2. **After merging:**
+   - Rename the Phase 3 address and profile columns in `20261120000100_orders_tracking.sql` if Phase 3 chose different names.
+   - Point the Phase 3 station page at `quote_delivery` / `quote_order` and link to `/customer/checkout?station=<id>&qty[<product>]=n`.
+   - Show live orders on the customer overview. That is Phase 3 scope; this branch did not touch `customer/overview.php`.
+   - Rerun every `supabase/tests/*.mjs` and update `supabase/tests/security.mjs`. Direct message inserts are now denied, and Phase 2 seeds products.
+3. **Database.** Run the six migration groups in order in the SQL Editor (see `docs/deployment.md`), verify each with read-only queries, then run `docs/station-jobs-cron.sql`.
+4. **Release.**
+   - Deploy with `vercel deploy --prod --yes` only after step 3.
+   - Then run `node tests/deployment-smoke.mjs` and a real two-browser test: one customer and one owner placing, preparing, dispatching, delivering and completing an order, plus a pickup and a chat reservation.

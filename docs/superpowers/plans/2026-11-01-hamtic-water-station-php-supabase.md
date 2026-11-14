@@ -55,11 +55,11 @@ The blueprint's Laravel, Breeze, MySQL, and MariaDB suggestions are replaced by 
 | --- | --- |
 | User interface | Complete preview for all four roles with sample data, under the HydroRoute name and logo. Pages do not read from Supabase yet. |
 | Catalogue and prices | Seven products from the station price list, defined in `app/UI/Products.php`: 18.9 L refill PHP 20, 9.5 L refill PHP 10, faucet jug refill PHP 20, new faucet jug with water PHP 190, and 350 ml, 500 ml, and 1 L bottled water boxes at PHP 220, 270, and 260. |
-| Delivery fee | Checkout preview applies PHP 5 under 1 km, PHP 10 for 1–3 km, and PHP 15 beyond 3 km, once per delivery order. Distances are sample values on saved addresses, not measured. |
-| Messaging | Customer and station-admin inbox preview stores messages in the browser only. |
-| Fulfillment | Delivery or pickup choice, pickup queue, and pickup tracking in the preview. |
+| Delivery fee | Live checkout (Phase 4) calculates the Haversine distance between the station and address pins in the database and picks the fee band from each station's versioned fee rules (D1: unrounded distance). On arrival the rider's GPS can lower the fee or open a review, never raise it (D2). Migration `20261120000100_orders_tracking.sql` must be applied first. |
+| Messaging | Live inbox, chat with read cursors and a 20-per-minute limit, and reservations that become scheduled orders (Phase 7, `20261120000300_messages_reservations.sql`). Preview mode keeps the browser-only demo. |
+| Fulfillment | Live ordering, priority queue (P = U + A + C), pickup collection, dispatch with SSTF stop order, rider arrival and results, cash and empties verification, and completion (Phases 4–6). |
 | Supabase | Project linked. The foundation migration was applied on 14 November 2026 through the SQL Editor because the local network blocks direct database connections. REST access and row-level security were checked with the publishable key. The PHP client was fixed to trust the Windows certificate store. |
-| Not built | Login, real orders, queue, dispatch, rider GPS, SSTF, reservations, notifications, and reports. |
+| Remaining | Phases 4–8 are built and tested locally on branch `feat/orders-dispatch-messaging`; their four migrations and the Cron schedule (`docs/station-jobs-cron.sql`) still have to be run in the SQL Editor, after the Phase 2–3 migrations. Road distance, refunds and multi-load trips stay out of scope. |
 
 ## 2 Shared platform for Hamtic stations
 

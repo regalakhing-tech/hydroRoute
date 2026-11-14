@@ -39,6 +39,19 @@ Local development uses native PHP file sessions. On Vercel (`VERCEL` is set), se
 
 Functions run in `hnd1` (Tokyo), next to the Supabase project (`ap-northeast-1`). Change `regions` in `vercel.json` if the database moves.
 
-For the future one-minute order release and five-minute queue refresh, use Supabase Cron for database functions. Do not depend on a continuously running PHP process or a station browser. Email work can run in a separately configured hosted worker or Edge Function. See [Supabase Cron](https://supabase.com/docs/guides/cron).
+## Live ordering migrations
 
-No cron jobs, database tables, remote projects, or deployed sites are created by this starter. Authentication and the order workflow must be implemented before station use.
+Run the migrations in the Supabase SQL Editor in file-name order. Each file is one transaction, and the later files depend on the earlier ones:
+
+1. `20261102144011_access_fulfillment_messaging.sql`, `20261114120000_station_registry_drivers.sql`, `20261114130000_app_sessions.sql` (already applied).
+2. The Phase 2 station setup file and the Phase 3 customer profile and address file.
+3. `20261120000100_orders_tracking.sql`: quotes, ordering, tracking and notifications.
+4. `20261120000200_operations_dispatch.sql`: queues, dispatch, SSTF, rider results, cash and reviews.
+5. `20261120000300_messages_reservations.sql`: chat and reservations. After this one, clients can no longer insert messages directly.
+6. `20261120000400_reports_jobs.sql`: reports and the station job.
+
+Do not deploy PHP that calls these RPCs before its migration is applied. Check each one with read-only queries, for example `npx supabase db query --remote --read-only "select proname from pg_proc where proname = 'submit_order'"`.
+
+## Station jobs
+
+Scheduled-order release, overdue alerts, reservation expiry and the 30-day rider-location cleanup run in the database through `public.run_all_station_jobs()`. Enable the `pg_cron` extension, then run `docs/station-jobs-cron.sql` once in the SQL Editor to schedule it every minute. Priority scores are calculated when a queue is read, so there is no separate refresh job. Do not depend on a continuously running PHP process or a station browser. See [Supabase Cron](https://supabase.com/docs/guides/cron).

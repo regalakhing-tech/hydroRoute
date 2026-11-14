@@ -6,7 +6,7 @@
 .vercel
 .superpowers
 node_modules
-vendor
+/vendor
 storage
 tests
 docs

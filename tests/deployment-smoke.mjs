@@ -22,6 +22,17 @@ for (const path of ['/', '/api/health', '/login/customer', '/login/station-admin
 for (const [path, type] of Object.entries({
     '/assets/css/app.css': 'text/css',
     '/assets/js/app.js': 'javascript',
+    '/assets/js/live.js': 'javascript',
+    '/assets/js/station-setup.js': 'javascript',
+    '/assets/vendor/sweetalert2.min.js': 'javascript',
+    '/assets/vendor/sweetalert2.min.css': 'text/css',
+    '/assets/vendor/leaflet/leaflet.js': 'javascript',
+    '/assets/vendor/leaflet/leaflet.css': 'text/css',
+    '/assets/vendor/leaflet/images/marker-icon.png': 'image/png',
+    '/assets/vendor/leaflet/images/marker-icon-2x.png': 'image/png',
+    '/assets/vendor/leaflet/images/marker-shadow.png': 'image/png',
+    '/assets/vendor/leaflet/images/layers.png': 'image/png',
+    '/assets/vendor/leaflet/images/layers-2x.png': 'image/png',
     '/assets/images/logo.png': 'image/png',
 })) {
     const response = await request(path);

@@ -12,10 +12,10 @@ $errors = is_array($_SESSION['form_errors'] ?? null) ? $_SESSION['form_errors'] 
 $err = static fn (string $f): string => isset($errors[$f]) ? '<p class="mt-1 text-sm font-semibold text-rose-700" role="alert">' . U::e($errors[$f]) . '</p>' : '';
 ?>
 <?= U::heading('Addresses', '', U::btn('Add address', '/customer/addresses#address-form', 'primary', 'plus')) ?>
-<div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+<div class="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_400px]">
 <section class="panel p-4 md:p-6">
     <h2 class="section-title mb-4 flex items-center gap-2.5"><span class="title-icon"><?= U::icon('pin','size-5') ?></span>Saved addresses</h2>
-    <?php if (isset($live['error'])): ?><p class="text-sm" role="alert"><?= U::e($live['error']) ?></p><?php elseif ($addresses === []): ?><p class="text-sm text-muted">No saved address yet. Add one with a map pin to order delivery.</p><?php endif ?>
+    <?php if (isset($live['error'])): ?><p class="mb-3 text-sm" role="alert"><?= U::e($live['error']) ?></p><?php endif ?>
     <div class="grid gap-3 md:grid-cols-2">
     <?php foreach ($addresses as $address): ?>
         <article class="flex flex-col rounded-xl border bg-white p-4 <?= $address['is_default'] ? 'border-water ring-1 ring-water/30' : 'border-line' ?>">
@@ -33,6 +33,7 @@ $err = static fn (string $f): string => isset($errors[$f]) ? '<p class="mt-1 tex
             </div>
         </article>
     <?php endforeach; ?>
+        <a href="/customer/addresses#address-form" class="flex min-h-44 flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-line p-4 text-center transition hover:border-water hover:bg-foam/60"><span class="flex size-11 items-center justify-center rounded-full bg-foam text-water"><?= U::icon('plus', 'size-5') ?></span><span class="font-bold text-water"><?= $addresses === [] ? 'Add your first address' : 'Add another address' ?></span><span class="text-xs text-muted">Pin it on the map so riders find your gate.</span></a>
     </div>
 </section>
 <section class="panel scroll-mt-24 p-4 md:p-6" id="address-form">

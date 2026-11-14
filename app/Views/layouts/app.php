@@ -48,7 +48,7 @@ require dirname(__DIR__).'/partials/head.php';
     <?php if (!empty($data['preview'])): ?><div class="preview-bar flex min-h-8 items-center justify-center gap-2 border-b border-line bg-white/75 px-4 text-[11px] text-muted">UI preview <span class="size-1 rounded-full bg-cyan-400"></span> Sample data <a href="/login/<?= U::e($role) ?>" class="ml-2 font-semibold text-water hover:underline">View login</a></div><?php endif ?>
     <main id="main-content" class="app-main mx-auto <?= $isRider?'max-w-4xl px-4 py-5 pb-28 md:px-8':($data['screen']==='messages'?'pb-24 md:pb-0':'max-w-[1600px] px-4 py-5 pb-28 sm:px-6 lg:px-8 lg:py-6') ?>">
         <?php require dirname(__DIR__).'/'.$role.'/'.$data['screen'].'.php'; ?>
-        <?php if ($data['screen'] !== 'messages'): ?><footer class="mt-8 flex flex-wrap items-center justify-between gap-2 border-t border-line py-4 text-[11px] text-muted"><span>HydroRoute · Hamtic, Antique</span><span><?= !empty($data['preview']) ? 'Sample data for UI preview' : 'Orders and trips show sample data until ordering is connected' ?></span></footer><?php endif ?>
+        <?php if ($data['screen'] !== 'messages'): ?><footer class="mt-8 flex flex-wrap items-center justify-between gap-2 border-t border-line py-4 text-[11px] text-muted"><span>HydroRoute · Hamtic, Antique</span><?= !empty($data['preview']) ? '<span>Sample data for UI preview</span>' : '' ?></footer><?php endif ?>
     </main>
 </div>
 <?php $tabs = $isRider ? array_values($nav) : array_slice(array_values($nav), 0, 4); $moreActive = !array_filter($tabs, static fn($n) => $n['active']); ?>

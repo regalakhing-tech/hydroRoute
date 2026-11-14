@@ -110,6 +110,21 @@ abstract class LiveController extends Controller
         return (int) $value;
     }
 
+    /** Pesos typed as "120" or "120.50" to integer centavos, as a digit string for the payload. */
+    protected static function centavos(mixed $value): string
+    {
+        $value = is_string($value) ? trim(str_replace([',', ' '], '', $value)) : '';
+        if (preg_match('/^(\d{1,7})(?:\.(\d{1,2}))?$/D', $value, $m) !== 1) throw new InvalidArgumentException('amount');
+        return (string) ((int) $m[1] * 100 + (int) str_pad($m[2] ?? '0', 2, '0'));
+    }
+
+    protected static function count(mixed $value, int $max = 9999): string
+    {
+        $n = is_string($value) ? filter_var(trim($value), FILTER_VALIDATE_INT, ['options' => ['min_range' => 0, 'max_range' => $max]]) : false;
+        if ($n === false) throw new InvalidArgumentException('count');
+        return (string) $n;
+    }
+
     /** Manila "YYYY-MM-DDTHH:MM" from a datetime-local field to an ISO instant. */
     protected static function manila(mixed $value): string
     {

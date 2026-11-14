@@ -31,7 +31,7 @@ export async function world() {
     // Calls an RPC as a user and returns its JSON envelope.
     t.rpc = async (user, fn, ...args) => {
         await t.as(user);
-        const row = (await db.query('select public.' + fn + '(' + args.map((_, i) => '$' + (i + 1)).join(',') + ') as r', args.map(a => a !== null && typeof a === 'object' ? JSON.stringify(a) : a))).rows[0];
+        const row = (await db.query('select public.' + fn + '(' + args.map((_, i) => '$' + (i + 1)).join(',') + ') as r', args.map(a => Array.isArray(a) ? '{' + a.join(',') + '}' : a !== null && typeof a === 'object' ? JSON.stringify(a) : a))).rows[0];
         await t.owner();
         return row.r;
     };

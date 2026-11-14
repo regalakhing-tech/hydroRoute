@@ -35,3 +35,45 @@ Tests:
 - `node supabase/tests/orders.mjs`: 59 order checks passed. They cover fee boundaries 0.99/1.0/3.0/3.01 km giving 500/1000/1000/1500 centavos, tampering, idempotency, duplicates, schedules, a closed station, cancellation rules, isolation, Super Admin denial and no direct writes.
 - `php tests/orders.php`: 29 order checks passed.
 - Preview regressions (`ui-smoke`, `ui-dom`, `fulfillment-dom`, `messages-dom`, `product-pricing-smoke`, `messages-regressions`) and the existing PHP suites still pass.
+
+## Phases 5 and 6: station operations, dispatch and rider screens — built locally, migration not yet applied
+
+Migration: `20261120000200_operations_dispatch.sql`. It adds `customer_station_profiles`, `delivery_trips`, `trip_orders`, `rider_locations`, `delivery_attempts`, `payments`, `order_reviews` and `private.rider_reservations`. All have RLS on, no client grants, and RPC-only access. Deviation from the design: the separate `order_collections` table is merged into `payments`. Each collected order gets one row holding the cash applied, tendered and change, plus the expected and returned empties.
+
+What works once the migration is applied:
+
+- **Overview:** a station owner sees today's numbers for this station only: orders by status, cash collected and verified today, unverified cash, overdue alerts, open alerts, free riders and open/closed state.
+- **Order queue:**
+  - Orders are ranked by the single database function `private.score`, so P = U + A + C, with U/A/C chips and "position is an estimate" wording.
+  - Owners can start preparation and mark orders ready.
+  - Owners can cancel with a reason. That covers confirmed, scheduled, on-hold and preparing orders, and ready orders with no trip and no payment (D9).
+  - Overdue alerts appear once an order waits more than 120 minutes. Resolving one needs a written reason.
+- **Order panel:** shows items, the fee and distance, the score breakdown, the history, and the cash record with a verify form. It also has the fee review (D2: the review records why the quote stands and never adds a surcharge), reattempt approval after a failed delivery, and completion. Completion needs verified cash and no open fee or empties review.
+- **Pickups:** start, mark ready, then record the cash and empties at the counter (full payment required). After that, verify the cash and complete the order.
+- **Deliveries:**
+  - `preview_trip` follows Stage 4. It takes the highest-priority ready order that is due within 60 minutes and assigns the free rider with the fewest trips today who can carry the whole order. It then adds same-barangay orders in queue order up to the vehicle's capacity.
+  - An order larger than every free vehicle stays visible with a warning, and the next feasible order is proposed.
+  - The owner can untick orders, pick another free rider, or move one overdue stop to the front with a reason.
+  - `dispatch_trip` checks everything again under locks and saves the trip, the SSTF stops, the rider reservation and the order changes in one transaction.
+  - Owners can verify cash and edit rider vehicles and capacity; edits are copied to the driver registration row.
+- **Trip page:** stops in SSTF order with the result and fee decision for each, the last rider position, and closing the trip. If stops are still open, closing needs a reason and returns those orders to ready, paused for review.
+- **Customers:** only customers of this station, with order counts, last order, amount spent at this station, and a household/institution classification for this station.
+- **Rider:**
+  - The rider sees their active trip with stops in SSTF order, the customer contact details, items, the amount to collect and the distance from the station.
+  - During an active trip only, the browser shares its location about every 30 seconds or 50 m. The page explains why and still works when location is denied.
+  - "I have arrived" applies the M11 and D2 fee rule. A lower measured fee is applied and the total drops. A higher one keeps the quote and opens a review. No GPS, or accuracy worse than 100 m, keeps the quote and records the reason.
+  - Delivered needs full cash; change is calculated and the empties are counted. A different empties count opens a review.
+  - Failed needs a reason. The order returns to ready, paused for review.
+  - The rider can close the trip and see their history. Only the assigned rider can act, and riders never see revenue or other riders' trips.
+
+Tests:
+
+- `node supabase/tests/operations.mjs`: 73 operations checks passed. They cover:
+  - the blueprint priority example: HMT-104/101/102/103/107 score 60/55/45/40/30, and aging at 9/10/49/50/60 minutes gives 0/5/20/25/25;
+  - SSTF: B, A, C; a five-stop example with an exact tie broken by priority; and a forced first stop;
+  - batching: 14 of 15 on the first trip and 5 of 5 on the second, the not-yet-due order waits, and the over-capacity order gets a warning;
+  - the fee lowered, flagged and fallback cases, underpayment, and failed attempt then reattempt;
+  - the full delivery and pickup flows with status logs, cash verification, review gates, D9 cancellation, isolation, and Super Admin denial.
+- `php tests/operations.php`: 32 operations checks passed.
+
+`app/Views/layouts/app.php` no longer shows "Orders and trips show sample data until ordering is connected" on live pages. If the station-setup branch changes the same footer line, merge by dropping that sentence.

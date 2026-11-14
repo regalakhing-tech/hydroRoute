@@ -1,3 +1,4 @@
+<?php if (!($data['preview'] ?? false)) { require __DIR__ . '/live/customers.php'; return; } ?>
 <?php use App\UI\UI as U; $s=$data['sample']; ?>
 <?= U::heading('Customers','Customers who order from '.$info['caption'].'.',U::btn('Export CSV','','secondary','download',['data-export'=>'station-customers'])) ?>
 <?php $type = fn($t) => (string)count(array_filter($s['customers'], fn($c) => $c[2] === $t)); ?>

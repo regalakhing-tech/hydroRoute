@@ -1,3 +1,4 @@
+<?php if (!($data['preview'] ?? false)) { require __DIR__ . '/live/history.php'; return; } ?>
 <?php use App\UI\UI as U; $s=$data['sample']; $done = count(array_filter($s['history'], static fn($h) => $h['status'] === 'Delivered')); $failed = count($s['history']) - $done; $refills = array_sum(array_column(array_filter($s['history'], static fn($h) => $h['status'] === 'Delivered'), 'quantity')); ?>
 <div class="mx-auto max-w-4xl space-y-4"><?= U::heading('Delivery history') ?>
 <section class="rounded-2xl bg-water p-4 text-white">

@@ -1,3 +1,4 @@
+<?php if (!($data['preview'] ?? false)) { require __DIR__ . '/live/account.php'; return; } ?>
 <?php use App\UI\UI as U; $s=$data['sample']; ?>
 <div class="mx-auto max-w-3xl space-y-4"><?= U::heading('My account') ?>
 <section class="flex items-center gap-3.5 rounded-2xl bg-water p-4 text-white"><span class="flex size-14 shrink-0 items-center justify-center rounded-full bg-white text-lg font-bold text-water">JR</span><div class="min-w-0 flex-1"><h2 class="truncate text-lg font-bold"><?= U::e($s['name']) ?></h2><p class="flex items-center gap-1.5 truncate text-sm"><?= U::icon('store','size-4 shrink-0') ?><?= U::e($s['station']) ?></p></div><span class="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-emerald-700">Active</span></section>

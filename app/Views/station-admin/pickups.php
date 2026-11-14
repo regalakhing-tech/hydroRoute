@@ -1,3 +1,4 @@
+<?php if (!($data['preview'] ?? false)) { require __DIR__ . '/live/pickups.php'; return; } ?>
 <?php use App\UI\UI as U; use App\UI\Fulfillment as F;
 $orders=array_values(array_filter($data['sample']['orders'],fn($o)=>$o[7]==='pickup')); ?>
 <?= U::heading('Pickup queue','Prepare water for collection at '.$info['caption'].'.') ?>

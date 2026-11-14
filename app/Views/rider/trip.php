@@ -1,3 +1,4 @@
+<?php if (!($data['preview'] ?? false)) { require __DIR__ . '/live/trip.php'; return; } ?>
 <?php use App\UI\UI as U; $s=$data['sample']; $stop=$s['stop']; ?>
 <div class="mx-auto max-w-4xl space-y-4">
 <?= U::heading("Today’s trip") ?>

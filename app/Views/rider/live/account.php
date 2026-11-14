@@ -1,0 +1,3 @@
+<?php use App\UI\UI as U; $u = $data['user'] ?? []; ?>
+<?= U::heading('Account', 'Your rider login.') ?>
+<section class="panel max-w-xl space-y-3 p-5 text-sm"><p><span class="text-muted">Name:</span> <strong><?= U::e($u['name'] ?? '') ?></strong></p><p><span class="text-muted">Email:</span> <?= U::e($u['email'] ?? '') ?></p><?php if (!empty($u['station']['name'])): ?><p><span class="text-muted">Station:</span> <?= U::e($u['station']['name']) ?></p><?php endif ?><p class="text-muted">Your station manages your vehicle, plate number and capacity. Ask the station admin to change them or to reset your password.</p><div><?= U::btn('Log out', '/logout?token=' . App\Core\Session::csrfToken(), 'secondary', 'logout') ?></div></section>

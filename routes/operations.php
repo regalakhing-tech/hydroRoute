@@ -4,6 +4,8 @@
 declare(strict_types=1);
 
 use App\Controllers\OrderController;
+use App\Controllers\RiderController;
+use App\Controllers\StationOpsController;
 use App\Core\Router;
 use App\Services\CurrentUser;
 use App\Services\Gateway;
@@ -23,4 +25,23 @@ return static function (Router $router, Gateway $db, CurrentUser $current): void
     $router->post('/customer/notifications/read', [$orders, 'readNotification']);
     $router->post('/customer/notifications/read-all', [$orders, 'readAll']);
     $router->get('/customer/navigation-counts', [$orders, 'counts']);
+
+    $ops = new StationOpsController($db, $current);
+    foreach ([
+        'orders/start' => 'start', 'orders/ready' => 'ready', 'orders/complete' => 'complete', 'orders/cancel' => 'cancel',
+        'orders/reattempt' => 'reattempt', 'orders/fee-review' => 'reviewFee', 'pickups/collect' => 'collectPickup',
+        'payments/verify' => 'verifyPayment', 'reviews/resolve' => 'resolveReview', 'dispatch' => 'dispatch', 'trips/close' => 'closeTrip',
+        'customers/classify' => 'classify', 'riders/save' => 'saveRider', 'notifications/read' => 'readNotification',
+    ] as $path => $action) {
+        $router->post('/station-admin/' . $path, [$ops, $action]);
+    }
+    $router->get('/station-admin/orders/updates', [$ops, 'updates']);
+    $router->get('/station-admin/trips/status', [$ops, 'tripStatus']);
+    $router->get('/station-admin/navigation-counts', [$ops, 'counts']);
+
+    $rider = new RiderController($db, $current);
+    $router->post('/rider/trips/arrived', [$rider, 'arrived']);
+    $router->post('/rider/trips/result', [$rider, 'deliver']);
+    $router->post('/rider/trips/close', [$rider, 'closeTrip']);
+    $router->post('/rider/trips/location', [$rider, 'location']);
 };

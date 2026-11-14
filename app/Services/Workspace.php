@@ -100,4 +100,56 @@ final class Workspace
     {
         return $this->call('list_notifications', ['p_station_id' => $stationId, 'p_cursor' => (object) []]);
     }
+
+    // Station admin --------------------------------------------------------------------------------
+
+    public function overview(): array
+    {
+        return $this->call('get_station_overview', ['p_station_id' => $this->stationId()]);
+    }
+
+    /** Changes whenever an order enters, leaves or changes in any queue list; drives page reloads. */
+    public static function fingerprint(array $queue): string
+    {
+        $rows = [];
+        foreach (['preparing', 'queue', 'ready', 'on_hold', 'scheduled', 'awaiting_completion', 'reviews'] as $list) {
+            foreach ($queue[$list] ?? [] as $row) $rows[] = $list . ':' . ($row['id'] ?? '') . ':' . ($row['version'] ?? '');
+        }
+        sort($rows);
+        return substr(hash('sha256', implode('|', $rows)), 0, 16);
+    }
+
+    public function queue(): array
+    {
+        return $this->call('get_preparation_queue', ['p_station_id' => $this->stationId()]);
+    }
+
+    public function dispatch(): array
+    {
+        $station = $this->stationId();
+        return $this->call('get_dispatch_queue', ['p_station_id' => $station]) + ['preview' => $this->call('preview_trip', ['p_station_id' => $station])];
+    }
+
+    public function stationOrder(mixed $id): array
+    {
+        if (!is_string($id) || preg_match('/^[0-9a-f-]{36}$/D', $id) !== 1) return ['error_code' => 'not_found'];
+        return $this->call('get_station_order', ['p_order_id' => $id], ['not_found']);
+    }
+
+    public function customers(string $search): array
+    {
+        return $this->call('get_station_customers', ['p_station_id' => $this->stationId(), 'p_filters' => ['search' => $search], 'p_cursor' => (object) []]);
+    }
+
+    /** A trip for its station's owner (by id) or the signed-in rider's active trip (null id). */
+    public function trip(?string $id): array
+    {
+        if ($id !== null && preg_match('/^[0-9a-f-]{36}$/D', $id) !== 1) return ['error_code' => 'not_found'];
+        return $this->call('get_trip', ['p_trip_id' => $id]);
+    }
+
+    public function riderHistory(): array
+    {
+        return $this->call('list_rider_history', ['p_cursor' => (object) []]);
+    }
 }

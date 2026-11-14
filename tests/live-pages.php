@@ -1,5 +1,5 @@
 <?php
-// Phase 9: every live customer, station-admin and rider page built in Phases 4-8 renders with empty real data,
+// Phase 9: every live customer, station-admin and rider page built in Phases 3-8 renders with empty real data,
 // raises no PHP warnings, and shows none of the preview sample names. Run: php tests/live-pages.php
 declare(strict_types=1);
 require dirname(__DIR__) . '/bootstrap.php';
@@ -29,7 +29,9 @@ $db->results = [
     'preview_trip' => $empty(['proposal' => null, 'warnings' => [], 'message' => 'The station is closed, so trips cannot be dispatched now.']),
     'get_station_customers' => $empty(['customers' => []]), 'get_trip' => $empty(['trip' => null]), 'list_rider_history' => $empty(['stops' => []]),
     'list_inbox' => $empty(['conversations' => []]),
+    'get_customer_overview' => $empty(['active' => null, 'recent' => [], 'unread_notifications' => 0, 'unread_messages' => 0, 'default_address' => null]),
 ];
+$db->tables['profiles'] = [['id' => 'live-user', 'display_name' => 'Real Person', 'phone' => null, 'order_updates' => true, 'station_updates' => true, 'version' => 1]];
 fakeStationContext($db, LIVE_STATION); // the results array above replaced the context fixture
 $samples = ['Maria Santos', 'Ana Dela Cruz', 'HMT-104', 'HMT-098', 'Guintas Water Station', 'Juan Reyes', 'Luis Reyes', 'Carlo Diaz', 'Guintas Learning Center', 'sample data', 'Sample data', 'data-chat-seed'];
 $render = static function (string $role, string $screen, array $get = []) use ($ui, $samples): void {
@@ -41,7 +43,7 @@ $render = static function (string $role, string $screen, array $get = []) use ($
     check($response->status === 200 && !str_contains($response->body, 'Station workspace unavailable'), "$role/$screen renders the live screen");
     foreach ($samples as $name) check(!str_contains($response->body, $name), "$role/$screen shows no sample text \"$name\"");
 };
-foreach (['checkout', 'orders', 'tracking', 'notifications', 'messages'] as $screen) $render('customer', $screen);
+foreach (['overview', 'stations', 'station', 'account', 'addresses', 'checkout', 'orders', 'tracking', 'notifications', 'messages'] as $screen) $render('customer', $screen);
 foreach (['overview', 'orders', 'deliveries', 'pickups', 'customers', 'trip', 'messages'] as $screen) $render('station-admin', $screen);
 foreach (['sales' => ['completed_orders' => 0, 'completed_total_centavos' => 0, 'delivery_fee_centavos' => 0, 'cash_collected_centavos' => 0, 'cash_verified_centavos' => 0, 'unverified_now_centavos' => 0, 'daily' => []],
     'orders' => ['placed' => 0, 'by_status' => [], 'by_fulfillment' => [], 'by_product' => [], 'by_barangay' => [], 'cancel_reasons' => [], 'daily' => []],

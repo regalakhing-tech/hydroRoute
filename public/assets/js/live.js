@@ -20,6 +20,39 @@
     $$('form').filter(f => $('[data-show-when]', f)).forEach(form => { syncShown(form); form.addEventListener('change', () => syncShown(form)); });
     $$('[data-no-js-only]').forEach(el => { el.hidden = true; });
 
+    // Address pin picker (Leaflet when loaded; typed coordinates always work). Bounds match the database check (D8).
+    const pinForm = $('form[data-pin-picker]');
+    if (pinForm) {
+        const lat = pinForm.elements.namedItem('latitude'), lng = pinForm.elements.namedItem('longitude'), source = pinForm.elements.namedItem('pin_source');
+        const status = $('[data-pin-status]', pinForm), device = $('[data-pin-device]', pinForm);
+        const b = {south: 10.584854, north: 10.746484, west: 121.961241, east: 122.07373};
+        const inside = (y, x) => Number.isFinite(y) && Number.isFinite(x) && y >= b.south && y <= b.north && x >= b.west && x <= b.east;
+        let map = null, marker = null;
+        const show = (y, x) => { if (!map) return; marker ? marker.setLatLng([y, x]) : (marker = window.L.circleMarker([y, x], {radius: 9, color: '#075985', fillColor: '#0ea5e9', fillOpacity: 1, weight: 3}).addTo(map)); map.panTo([y, x]); };
+        const choose = (y, x, how) => {
+            if (!inside(y, x)) { status.textContent = 'That point is outside Hamtic. Choose a point inside the municipality.'; return; }
+            lat.value = y.toFixed(7); lng.value = x.toFixed(7); source.value = how; show(y, x);
+            status.textContent = 'Pin placed. Save the address to keep it.';
+        };
+        if (window.L) {
+            const y0 = Number(lat.value), x0 = Number(lng.value), has = lat.value !== '' && inside(y0, x0);
+            map = window.L.map($('[data-pin-map]', pinForm)).setView(has ? [y0, x0] : [(b.south + b.north) / 2, (b.west + b.east) / 2], has ? 16 : 12);
+            window.L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);
+            map.on('click', e => choose(e.latlng.lat, e.latlng.lng, 'map'));
+            if (has) show(y0, x0);
+        } else {
+            $('[data-pin-map]', pinForm).hidden = true;
+            status.textContent = 'The map is unavailable. Type the coordinates or use your current location.';
+        }
+        [lat, lng].forEach(input => input.addEventListener('input', () => { source.value = 'manual'; if (inside(Number(lat.value), Number(lng.value))) show(Number(lat.value), Number(lng.value)); }));
+        if (!navigator.geolocation) device.hidden = true;
+        else device.addEventListener('click', () => {
+            status.textContent = 'Waiting for location permission…';
+            navigator.geolocation.getCurrentPosition(p => choose(p.coords.latitude, p.coords.longitude, 'device'),
+                () => { status.textContent = 'Location is unavailable. Tap the map or type the coordinates.'; }, {enableHighAccuracy: true, timeout: 15000, maximumAge: 0});
+        });
+    }
+
     // Live checkout totals from the database quote.
     $$('form[data-live-quote]').forEach(form => {
         let timer = 0, seq = 0;

@@ -1,3 +1,4 @@
+<?php if (!($data['preview'] ?? false)) { require __DIR__ . '/live/addresses.php'; return; } ?>
 <?php use App\UI\UI as U; ?>
 <?= U::heading('Addresses', '', U::btn('Add address', '#address-form', 'primary', 'plus')) ?>
 <div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">

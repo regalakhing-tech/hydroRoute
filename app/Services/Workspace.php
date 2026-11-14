@@ -72,7 +72,7 @@ final class Workspace
         $availability = $this->db->rpc('get_station_availability', ['p_station_id' => $stationId, 'p_requested_at' => null], $token)['data'] ?? [];
         $products = $this->db->select('products', ['select' => 'id,name,pack_text,description,image_key,price_centavos,returnable,load_units',
             'station_id' => 'eq.' . $stationId, 'active' => 'eq.true', 'order' => 'name.asc'], $token);
-        $addresses = $this->db->select('addresses', ['select' => 'id,label,address,latitude,longitude', 'deleted_at' => 'is.null', 'order' => 'label.asc'], $token);
+        $addresses = $this->db->select('addresses', ['select' => 'id,label,address,latitude,longitude,is_default', 'deleted_at' => 'is.null', 'order' => 'is_default.desc,label.asc'], $token);
         $known = array_column($products, null, 'id');
         $items = array_intersect_key(Checkout::items($query), $known);
         $form = Checkout::form($query);
@@ -83,6 +83,54 @@ final class Workspace
         $quote = $items === [] ? null : $this->db->rpc('quote_order', ['p_station_id' => $stationId, 'p_payload' => Checkout::payload($items, $form)], $token);
         return ['station' => $station, 'availability' => is_array($availability) ? $availability : [], 'products' => $known, 'addresses' => $addresses,
             'items' => $items, 'form' => $form, 'quote' => $quote];
+    }
+
+    /** Customer home page. */
+    public function home(): array
+    {
+        return $this->call('get_customer_overview', []) + ['stations' => array_slice((new StationDirectory($this->db))->approved(), 0, 6)];
+    }
+
+    public function directory(): array
+    {
+        return ['stations' => (new StationDirectory($this->db))->approved()];
+    }
+
+    /** Public station page by slug or id: availability, active products, served barangays and the default-address quote. */
+    public function station(mixed $ref): array
+    {
+        if (!is_string($ref) || preg_match('/^[a-z0-9][a-z0-9-]{1,59}$|^[0-9a-f-]{36}$/D', $ref) !== 1) return ['missing' => true];
+        $token = $this->token();
+        $byId = preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/D', $ref) === 1;
+        $station = $this->db->select('stations', ['select' => 'id,name,slug,address,barangay,phone,description', $byId ? 'id' : 'slug' => 'eq.' . $ref], $token)[0] ?? null;
+        if ($station === null) return ['missing' => true];
+        $id = $station['id'];
+        $availability = $this->db->rpc('get_station_availability', ['p_station_id' => $id, 'p_requested_at' => null], $token)['data'] ?? [];
+        $products = $this->db->select('products', ['select' => 'id,name,pack_text,description,image_key,price_centavos,returnable,load_units',
+            'station_id' => 'eq.' . $id, 'active' => 'eq.true', 'order' => 'name.asc'], $token);
+        $served = $this->db->select('station_service_areas', ['select' => 'barangay_id,barangays(name)', 'station_id' => 'eq.' . $id, 'served' => 'eq.true'], $token);
+        $address = $this->db->select('addresses', ['select' => 'id,label,address,latitude', 'is_default' => 'eq.true', 'deleted_at' => 'is.null'], $token)[0] ?? null;
+        $quote = $address !== null && $address['latitude'] !== null
+            ? ($this->db->rpc('quote_delivery', ['p_station_id' => $id, 'p_address_id' => $address['id']], $token)['data'] ?? null) : null;
+        return ['station' => $station, 'availability' => is_array($availability) ? $availability : [], 'products' => $products,
+            'served' => array_values(array_filter(array_map(static fn (array $r): string => (string) ($r['barangays']['name'] ?? ''), $served))),
+            'address' => $address, 'quote' => $quote];
+    }
+
+    public function account(): array
+    {
+        $id = Session::user()['id'] ?? '';
+        $profile = $this->db->select('profiles', ['select' => 'id,display_name,phone,order_updates,station_updates,version', 'id' => 'eq.' . $id], $this->token())[0] ?? null;
+        if ($profile === null) throw new RuntimeException('Profile unavailable.');
+        return ['profile' => $profile, 'email' => (string) (Session::user()['email'] ?? '')];
+    }
+
+    public function addresses(): array
+    {
+        $token = $this->token();
+        return ['addresses' => $this->db->select('addresses', ['select' => 'id,label,address,street,landmark,barangay_id,latitude,longitude,pin_source,is_default,version',
+                'deleted_at' => 'is.null', 'order' => 'is_default.desc,label.asc'], $token),
+            'barangays' => $this->db->select('barangays', ['select' => 'id,name', 'active' => 'eq.true', 'order' => 'name.asc'], $token)];
     }
 
     public function orders(string $group): array

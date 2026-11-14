@@ -25,13 +25,13 @@ The SQL Editor handoff was sent to the user. Phase 3 implementation awaits migra
 - [x] Phase 1: run and record the current PHP, database and preview baseline.
 - [x] Phase 1: review the proposed design; resolve the pickup-empties reconciliation and newly created operational-rider synchronization gaps. Focused re-review found no remaining Critical or Important issues in those changed sections.
 - [x] Phase 1 review gate: user approved design/decisions with "continue all"; approval recorded. Phase documents are being versioned separately from the preserved local baseline.
-- [ ] Phase 2: role-specific station authorization and owner profile/pin/service areas/products/rules/schedules; default catalogue/settings initialization.
-- [ ] Phase 3: customer profile/preferences/password/logout-all, owned pinned addresses/defaults, live catalogue and delivery quote.
-- [ ] Phase 4: atomic order/duplicate/schedule/cancel/track, real dashboard/history/notifications and polling.
-- [ ] Phase 5: owner queues/preparation/ready/reviews/pickup/cash/customers/dispatch/trip views.
-- [ ] Phase 6: assigned rider trip/location/arrival/result/cash/empties/return/history.
-- [ ] Phase 7: saved customer–station inbox/chat/read receipts/rate limits/reservations.
-- [ ] Phase 8: scoped reports/CSV/print and restricted scheduled jobs/retention.
+- [x] Phase 2 (built and committed; migration not yet run on Supabase): role-specific station authorization and owner profile/pin/service areas/products/rules/schedules; default catalogue/settings initialization.
+- [x] Phase 3 (built and committed; migration not yet run on Supabase): customer profile/preferences/password/logout-all, owned pinned addresses/defaults, live catalogue and delivery quote.
+- [x] Phase 4 (built on feat/orders-dispatch-messaging and merged; see progress-phases-4-9.md): atomic order/duplicate/schedule/cancel/track, real dashboard/history/notifications and polling.
+- [x] Phase 5 (built on feat/orders-dispatch-messaging and merged; see progress-phases-4-9.md): owner queues/preparation/ready/reviews/pickup/cash/customers/dispatch/trip views.
+- [x] Phase 6 (built on feat/orders-dispatch-messaging and merged; see progress-phases-4-9.md): assigned rider trip/location/arrival/result/cash/empties/return/history.
+- [x] Phase 7 (built on feat/orders-dispatch-messaging and merged; see progress-phases-4-9.md): saved customer–station inbox/chat/read receipts/rate limits/reservations.
+- [x] Phase 8 (built on feat/orders-dispatch-messaging and merged; see progress-phases-4-9.md): scoped reports/CSV/print and restricted scheduled jobs/retention.
 - [ ] Phase 9: no live fixture paths, isolation/concurrency/mobile acceptance, documentation, migration verification and production release.
 
 ## Current findings

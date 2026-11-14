@@ -1,13 +1,8 @@
--- Phase 4: customer quotes, order submission, duplicate holds, cancellation, rescheduling, tracking and notifications.
--- Requires Phase 2 (20261114155714_station_setup.sql). The address/profile columns read here belong to Phase 3;
--- they are added with "if not exists" so this file is safe whichever phase defines them first.
+-- Phase 4: customer quotes, order submission, duplicate holds, cancellation, rescheduling, tracking, overview and notifications.
+-- Requires Phase 2 (20261114155714_station_setup.sql) and Phase 3 (20261114180000_customer_profile_addresses.sql),
+-- which define the address pins, profile phone, request-key helpers and delivery_terms used here.
 -- Paste the whole file into the Supabase SQL Editor. It changes no existing rows except widening the orders status rule.
 begin;
-
-alter table public.addresses add column if not exists barangay_id uuid references public.barangays(id),
- add column if not exists latitude numeric, add column if not exists longitude numeric,
- add column if not exists landmark text not null default '', add column if not exists deleted_at timestamptz;
-alter table public.profiles add column if not exists phone text;
 
 alter table public.orders
  add column if not exists order_no text, add column if not exists request_key uuid,
@@ -90,84 +85,6 @@ alter table public.order_status_logs enable row level security;
 revoke all on public.order_status_logs from public, anon, authenticated;
 
 -- Helpers ---------------------------------------------------------------------------------------------
-create or replace function private.customer_guard() returns void language plpgsql stable security definer set search_path = '' as $$
-begin
- if auth.uid() is null or private.has_role('super_admin') or not private.has_role('customer') then
-  raise exception 'Customer access denied.' using errcode = '42501';
- end if;
-end $$;
-
--- Idempotency for any actor scope. Only successful results are kept, so a corrected retry is not blocked.
-create or replace function private.replay(scope text, op text, key uuid, payload jsonb) returns jsonb language plpgsql security definer set search_path = '' as $$
-declare r private.mutation_requests;
-begin
- if key is null then return private.envelope('{}', 'validation', jsonb_build_object('request_key', 'A request key is required.')); end if;
- perform pg_advisory_xact_lock(hashtextextended(auth.uid()::text || ':' || scope || ':' || op || ':' || key::text, 0));
- select * into r from private.mutation_requests where actor_id = auth.uid() and scope_key = scope and operation = op and request_key = key;
- if found then
-  if r.payload_digest <> md5(payload::text) then return private.envelope('{}', 'idempotency_conflict'); end if;
-  return r.result;
- end if;
- return null;
-end $$;
-
-create or replace function private.remember(scope text, op text, key uuid, payload jsonb, result jsonb) returns jsonb language plpgsql security definer set search_path = '' as $$
-begin
- if coalesce((result->>'ok')::boolean, false) then
-  insert into private.mutation_requests(actor_id, scope_key, operation, request_key, payload_digest, result)
-  values (auth.uid(), scope, op, key, md5(payload::text), result);
- end if;
- return result;
-end $$;
-
-create or replace function private.haversine_km(lat1 numeric, lon1 numeric, lat2 numeric, lon2 numeric) returns numeric language sql immutable set search_path = '' as $$
- select (2 * 6371 * asin(sqrt(power(sin(radians((lat2 - lat1)::float8) / 2), 2)
-  + cos(radians(lat1::float8)) * cos(radians(lat2::float8)) * power(sin(radians((lon2 - lon1)::float8) / 2), 2))))::numeric
-$$;
-
--- D1: the band is chosen from the unrounded distance.
-create or replace function private.fee_for(sid uuid, ver int, km numeric) returns int language sql stable security definer set search_path = '' as $$
- select fee_centavos from public.delivery_fee_rules where station_id = sid and version = ver
-  and (km > min_km or (min_inclusive and km = min_km)) and (max_km is null or km < max_km or (max_inclusive and km = max_km))
- order by band_index limit 1
-$$;
-
-create or replace function private.uuid_text(v text) returns boolean language sql immutable set search_path = '' as $$
- select coalesce(v, '') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-$$;
-
--- Distance, service area and fee for one owned address. Shared by quote_delivery and price_order.
-create or replace function private.delivery_terms(sid uuid, aid uuid, cid uuid) returns jsonb language plpgsql stable security definer set search_path = '' as $$
-declare st public.stations; a public.addresses; cfg public.station_settings; fs public.delivery_fee_rule_sets; km numeric; fee int;
-begin
- select * into st from public.stations where id = sid;
- select * into a from public.addresses where id = aid and customer_id = cid and deleted_at is null;
- if not found then return jsonb_build_object('eligible', false, 'code', 'validation', 'message', 'Choose one of your saved addresses.'); end if;
- if a.latitude is null or a.longitude is null then
-  return jsonb_build_object('eligible', false, 'code', 'address_no_pin', 'message', 'This address has no map pin. Add a pin on the Addresses page or choose pickup.');
- end if;
- if st.latitude is null or st.longitude is null then
-  return jsonb_build_object('eligible', false, 'code', 'station_no_pin', 'message', 'This station has not set its map location yet, so it takes pickup orders only.');
- end if;
- if exists (select 1 from public.station_service_areas where station_id = sid and served)
-  and not exists (select 1 from public.station_service_areas where station_id = sid and served and barangay_id = a.barangay_id) then
-  return jsonb_build_object('eligible', false, 'code', 'out_of_area', 'message', 'This station does not deliver to that barangay.');
- end if;
- select * into cfg from public.station_settings where station_id = sid;
- select * into fs from public.delivery_fee_rule_sets where station_id = sid and version = cfg.active_fee_version;
- km := private.haversine_km(st.latitude, st.longitude, a.latitude, a.longitude);
- if km > fs.max_distance_km then
-  return jsonb_build_object('eligible', false, 'code', 'out_of_range', 'distance_km', km, 'distance_display', round(km, 1), 'max_distance_km', fs.max_distance_km,
-   'message', format('This address is about %s km away. The station delivers up to %s km.', round(km, 1), fs.max_distance_km));
- end if;
- fee := private.fee_for(sid, fs.version, km);
- if fee is null then return jsonb_build_object('eligible', false, 'code', 'fee_unavailable', 'message', 'The station has no delivery fee for this distance.'); end if;
- return jsonb_build_object('eligible', true, 'distance_km', km, 'distance_display', round(km, 1), 'fee_centavos', fee, 'fee_version', fs.version,
-  'max_distance_km', fs.max_distance_km, 'address_id', a.id, 'label', a.label, 'address', a.address, 'landmark', a.landmark,
-  'barangay_id', a.barangay_id, 'barangay', (select name from public.barangays where id = a.barangay_id), 'latitude', a.latitude, 'longitude', a.longitude,
-  'station_latitude', st.latitude, 'station_longitude', st.longitude);
-end $$;
-
 -- V5, V6 and D4/D10: ASAP needs the station accepting now; a scheduled time must fall in a bookable window and cutoff.
 create or replace function private.schedule_check(sid uuid, ful text, mode text, requested text, t timestamptz) returns jsonb language plpgsql stable security definer set search_path = '' as $$
 declare av jsonb; days int; at_time timestamptz; today date := (t at time zone 'Asia/Manila')::date; d date;
@@ -316,15 +233,6 @@ begin
  return private.price_order(p_station_id, auth.uid(), p_payload, now());
 end $$;
 
-create or replace function public.quote_delivery(p_station_id uuid, p_address_id uuid) returns jsonb language plpgsql stable security definer set search_path = '' as $$
-declare terms jsonb;
-begin
- perform private.customer_guard();
- if not exists (select 1 from public.stations where id = p_station_id and active and registration_status = 'approved') then return private.envelope('{}', 'not_found'); end if;
- terms := private.delivery_terms(p_station_id, p_address_id, auth.uid());
- return private.envelope(terms || jsonb_build_object('station_id', p_station_id, 'address_id', p_address_id));
-end $$;
-
 -- Inserts one priced order (data from private.price_order) with items and its first status log. Callers lock and notify.
 create or replace function private.insert_order(sid uuid, cid uuid, d jsonb, st text, key uuid, dup uuid, fp text, reason text) returns jsonb language plpgsql security definer set search_path = '' as $$
 declare dl jsonb := d->'delivery'; n bigint; no text; oid uuid; v int;
@@ -349,6 +257,30 @@ begin
  insert into public.order_status_logs(station_id, order_id, from_status, to_status, actor_id, reason, order_version, request_key)
  values (sid, oid, null, st, auth.uid(), reason, v, key);
  return jsonb_build_object('order_id', oid, 'order_no', no, 'version', v);
+end $$;
+
+-- Customer home: the latest active order with its timeline, recent orders, unread counts and the default address.
+create or replace function public.get_customer_overview() returns jsonb language plpgsql stable security definer set search_path = '' as $$
+declare act public.orders;
+begin
+ perform private.customer_guard();
+ select * into act from public.orders where customer_id = auth.uid() and status in ('pending','on_hold','scheduled','confirmed','preparing','ready','out_for_delivery')
+ order by created_at desc limit 1;
+ return private.envelope(jsonb_build_object(
+  'active', case when act.id is not null then jsonb_build_object('id', act.id, 'order_no', act.order_no, 'status', act.status, 'fulfillment', act.fulfillment,
+   'station_id', act.station_id, 'station_name', (select name from public.stations where id = act.station_id), 'total_units', act.total_units, 'total_centavos', act.total_centavos,
+   'schedule_mode', act.schedule_mode, 'requested_at', act.requested_at,
+   'timeline', coalesce((select jsonb_agg(jsonb_build_object('to', l.to_status, 'at', l.created_at) order by l.created_at, l.id) from public.order_status_logs l where l.order_id = act.id), '[]')) end,
+  'recent', coalesce((select jsonb_agg(x.j order by x.created_at desc, x.id desc) from (
+   select o.created_at, o.id, jsonb_build_object('id', o.id, 'order_no', coalesce(o.order_no, upper(left(o.id::text, 8))), 'station_name', s.name, 'status', o.status, 'fulfillment', o.fulfillment,
+    'total_units', o.total_units, 'total_centavos', o.total_centavos, 'created_at', o.created_at) j
+   from public.orders o join public.stations s on s.id = o.station_id where o.customer_id = auth.uid() order by o.created_at desc, o.id desc limit 5) x), '[]'),
+  'unread_notifications', (select count(*) from public.notifications n where n.recipient_id = auth.uid() and n.read_at is null and n.kind not like 'staff\_%'),
+  'unread_messages', (select count(*) from public.messages m join public.conversations c on c.id = m.conversation_id
+   left join public.read_receipts rr on rr.conversation_id = c.id and rr.user_id = auth.uid()
+   where c.customer_id = auth.uid() and m.sender_id <> auth.uid() and m.created_at > coalesce(rr.read_at, '-infinity'::timestamptz)),
+  'default_address', (select jsonb_build_object('id', a.id, 'label', a.label, 'address', a.address, 'pinned', a.latitude is not null)
+   from public.addresses a where a.customer_id = auth.uid() and a.is_default and a.deleted_at is null)));
 end $$;
 
 create or replace function public.submit_order(p_station_id uuid, p_payload jsonb, p_request_key uuid) returns jsonb language plpgsql security definer set search_path = '' as $$
@@ -556,11 +488,11 @@ end $$;
 
 do $$declare f record; begin
  for f in select p.oid::regprocedure sig from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'private' and p.proname in
-  ('customer_guard','replay','remember','haversine_km','fee_for','uuid_text','delivery_terms','schedule_check','price_order','status_message','notify','notify_station','transition','notice_scope','insert_order') loop
+  ('schedule_check','price_order','status_message','notify','notify_station','transition','notice_scope','insert_order') loop
   execute 'revoke all on function ' || f.sig || ' from public, anon, authenticated, service_role';
  end loop;
  for f in select p.oid::regprocedure sig from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname in
-  ('quote_order','quote_delivery','submit_order','confirm_duplicate','cancel_order','reschedule_order','list_customer_orders','get_customer_order',
+  ('quote_order','get_customer_overview','submit_order','confirm_duplicate','cancel_order','reschedule_order','list_customer_orders','get_customer_order',
    'list_notifications','mark_notification_read','mark_all_notifications_read','get_navigation_counts') loop
   execute 'revoke all on function ' || f.sig || ' from public, anon, authenticated, service_role';
   execute 'grant execute on function ' || f.sig || ' to authenticated';

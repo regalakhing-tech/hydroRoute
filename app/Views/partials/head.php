@@ -15,6 +15,7 @@
     <?php if ($data['screen'] === 'settings-profile'): ?><link rel="stylesheet" href="/assets/vendor/leaflet/leaflet.css"><script src="/assets/vendor/leaflet/leaflet.js" defer></script><?php endif ?>
     <script src="/assets/js/station-setup.js" defer></script>
     <?php endif ?>
+    <?php if (empty($data['preview']) && ($data['role'] ?? '') === 'customer' && ($data['screen'] ?? '') === 'addresses'): ?><link rel="stylesheet" href="/assets/vendor/leaflet/leaflet.css"><script src="/assets/vendor/leaflet/leaflet.js" defer></script><?php endif ?>
     <script src="/assets/vendor/sweetalert2.min.js" defer></script>
     <script src="/assets/js/app.js" defer></script>
     <script src="/assets/js/messages.js" defer></script>

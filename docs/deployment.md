@@ -44,7 +44,7 @@ Functions run in `hnd1` (Tokyo), next to the Supabase project (`ap-northeast-1`)
 Run the migrations in the Supabase SQL Editor in file-name order. Each file is one transaction, and the later files depend on the earlier ones:
 
 1. `20261102144011_access_fulfillment_messaging.sql`, `20261114120000_station_registry_drivers.sql`, `20261114130000_app_sessions.sql` (already applied).
-2. The Phase 2 station setup file and the Phase 3 customer profile and address file.
+2. `20261114155714_station_setup.sql` (Phase 2) and `20261114180000_customer_profile_addresses.sql` (Phase 3).
 3. `20261120000100_orders_tracking.sql`: quotes, ordering, tracking and notifications.
 4. `20261120000200_operations_dispatch.sql`: queues, dispatch, SSTF, rider results, cash and reviews.
 5. `20261120000300_messages_reservations.sql`: chat and reservations. After this one, clients can no longer insert messages directly.

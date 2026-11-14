@@ -69,8 +69,8 @@ export async function world() {
     t.guintas = guintas;
     // Addresses: home 1.5 km north of station one, far one about 15.6 km away, one without a pin.
     t.address = async (customer, label, kmNorth, barangay = guintas) => {
-        const pin = kmNorth === null ? 'null, null' : `${STATION_PIN[0] + kmNorth / KM_PER_DEG}, ${STATION_PIN[1]}`;
-        return (await t.sql(`insert into public.addresses(customer_id, label, address, barangay_id, latitude, longitude) values ('${customer}', '${label}', 'Purok 1, ${label}', '${barangay}', ${pin}) returning id`))[0].id;
+        const pin = kmNorth === null ? 'null, null, null' : `${(STATION_PIN[0] + kmNorth / KM_PER_DEG).toFixed(7)}, ${STATION_PIN[1]}, 'map'`;
+        return (await t.sql(`insert into public.addresses(customer_id, label, address, barangay_id, latitude, longitude, pin_source) values ('${customer}', '${label}', 'Purok 1, ${label}', '${barangay}', ${pin}) returning id`))[0].id;
     };
     t.home = await t.address(ids.customer, 'Home', 1.5);
     t.far = await t.address(ids.customer, 'Far', 15.5);

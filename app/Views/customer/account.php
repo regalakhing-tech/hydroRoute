@@ -1,3 +1,4 @@
+<?php if (!($data['preview'] ?? false)) { require __DIR__ . '/live/account.php'; return; } ?>
 <?php use App\UI\UI as U; $sample = $data['sample']; $home = $sample['addresses'][0]; ?>
 <?= U::heading('Account') ?>
 <section class="relative mb-5 overflow-hidden rounded-2xl bg-linear-to-br from-cyan-600 to-teal-700 p-4 text-white shadow-md md:p-5">

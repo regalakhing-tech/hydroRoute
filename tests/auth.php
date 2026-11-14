@@ -147,9 +147,11 @@ $_SESSION = [];
 $guarded = (new UIController(false))->page('customer', 'overview');
 check($guarded->status === 303 && $guarded->headers['Location'] === '/login/customer', 'customer pages redirect to login');
 $flash();
-Session::login(['id' => 'user-0', 'email' => 'juan@example.com', 'name' => 'Juan Dela Cruz', 'role' => 'customer', 'station' => null], ['access_token' => 't']);
+Session::login(['id' => 'user-0', 'email' => 'juan@example.com', 'name' => 'Juan Dela Cruz', 'role' => 'customer', 'station' => null], ['access_token' => 't', 'expires_at' => 2_000_000_000]);
+// The live home page reads Supabase through the workspace; an empty fake gateway gives its error state.
+App\Services\Workspace::boot(new App\Services\Workspace(new FakeGateway(), new App\Services\CurrentUser($auth)));
 $page = (new UIController(false))->page('customer', 'overview');
-check($page->status === 200 && str_contains($page->body, 'Good morning, Juan') && str_contains($page->body, '>JD<'), 'logged-in customer sees own name and initials');
+check($page->status === 200 && preg_match('/Good (morning|afternoon|evening), Juan/', $page->body) === 1 && str_contains($page->body, '>JD<'), 'logged-in customer sees own name and initials');
 check(str_contains($page->body, '/logout?token='.Session::csrfToken()), 'logout link carries the CSRF token');
 $_SESSION = [];
 check((new UIController(true))->page('customer', 'overview')->status === 200, 'preview mode still shows sample customer pages');

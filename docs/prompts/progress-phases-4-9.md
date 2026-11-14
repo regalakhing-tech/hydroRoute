@@ -184,3 +184,46 @@ Still open, in order:
 4. **Release.**
    - Deploy with `vercel deploy --prod --yes` only after step 3.
    - Then run `node tests/deployment-smoke.mjs` and a real two-browser test: one customer and one owner placing, preparing, dispatching, delivering and completing an order, plus a pickup and a chat reservation.
+
+## Phase 3 and integration, 15 November
+
+The user asked for Phase 3 and for everything to be connected. Codex's Phase 2 work, which passed every check, was committed as `3097cc5`. This branch was merged into `feat/live-station-workflows`, and Phase 3 was built on top.
+
+Phase 3 migration: `20261114180000_customer_profile_addresses.sql`. It runs after Phase 2 and before Phase 4.
+
+- **Profiles:** phone (`+639XXXXXXXXX`), order and station notification preferences, and version. Phones and names are copied from sign-up details.
+- **Addresses:**
+  - New columns: official barangay, street, landmark, optional pin inside the D8 Hamtic envelope with `pin_source` (map, device or manual), one default per customer, soft delete and version.
+  - Each customer's first address becomes the default.
+  - Clients can no longer write addresses directly.
+  - The old `addresses_station_read` policy is retired; stations read order snapshots instead.
+- **Served barangays** are publicly readable for approved stations.
+- **RPCs:** `save_customer_profile`, `save_customer_address`, `delete_customer_address`, `set_default_address` and `quote_delivery`.
+- The shared request-key helpers, Haversine distance, fee lookup and `delivery_terms` moved here from the Phase 4 file, so each is defined once. `get_customer_overview` sits in the Phase 4 file because it reads order columns.
+
+What a customer can do once Phases 2–3 are applied:
+
+- **Account:** edit their name, mobile number and notification preferences. The sign-in email is read-only. They can change their password after confirming the current one, and sign out on all devices (Supabase Auth global sign-out; other devices end within about an hour).
+- **Addresses:** add, edit, remove and choose a default address. The pin is set by tapping the map, using the device location or typing coordinates. An address without a pin is pickup-only.
+- **Find stations:** approved stations only, with live open/closed status.
+- **Station page:** live products and prices, served barangays, the next 7 days of hours, the closure notice, and the distance and fee from the default address. It continues to checkout with the chosen quantities.
+- **Overview:** the active order and its progress, unread notifications and messages, the default address, stations and recent orders.
+
+Tests:
+
+| Suite | Checks passed |
+| --- | --- |
+| `supabase/tests/customer.mjs` | 31 |
+| `php tests/customer.php` | 16 |
+| `php tests/live-pages.php` (now 25 live pages) | 312 |
+
+The full suite passes:
+
+- auth 49, registry 63, sessions 7, catalogue 16, station setup 151 and 15;
+- SQL: security 107, registry 37, station setup 155, orders 59, operations 73, messaging 47, reports 24;
+- the preview DOM and smoke suites, including station setup DOM 36.
+
+Test changes:
+
+- `supabase/tests/station-setup.mjs` now loads only the migrations before Phase 2.
+- `supabase/tests/security.mjs` stops before Phase 7, which removes direct message writes; `messages.mjs` covers those rules now. It also expects stations to read address snapshots instead of the address book.

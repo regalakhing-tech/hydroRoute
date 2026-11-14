@@ -88,7 +88,7 @@ await deniedInsert('public.read_receipts','conversation_id',[[otherConversation]
 await client(admin);
 eq(await n('public.orders','id='+q(order)),1,'Admin sees own station order');
 eq(await n('public.orders','id='+q(otherOrder)),0,'Admin cannot see other station');
-eq(await n('public.addresses','id='+q(address)),1,'Admin sees relevant address');
+eq(await n('public.addresses','id='+q(address)),0,'Station reads order address snapshots, not the customer address book (Phase 3)');
 eq(await n('public.addresses','id='+q(otherAddress)),0,'Other station address private');
 eq(await n('public.products','id='+q(inactiveProduct)),1,'Admin reviews own unavailable product');
 await insert('public.messages','conversation_id,body',[[conversation,'Station reply']]);

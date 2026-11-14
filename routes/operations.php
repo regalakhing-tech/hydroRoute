@@ -1,8 +1,9 @@
 <?php
-// Live ordering, station operations, rider delivery, messaging and report routes (Phases 4-8).
+// Live customer account, ordering, station operations, rider delivery, messaging and report routes (Phases 3-8).
 // Kept apart from routes/web.php so the station-setup work and this work merge without conflicts.
 declare(strict_types=1);
 
+use App\Controllers\CustomerController;
 use App\Controllers\MessageController;
 use App\Controllers\OrderController;
 use App\Controllers\ReportController;
@@ -15,6 +16,13 @@ use App\Services\Workspace;
 
 return static function (Router $router, Gateway $db, CurrentUser $current): void {
     Workspace::boot(new Workspace($db, $current));
+
+    // Phase 3: the Supabase client is also the Auth provider (password change, sign-out everywhere).
+    $customer = new CustomerController($db, $current, $db);
+    foreach (['account/profile' => 'saveProfile', 'account/password' => 'changePassword', 'account/logout-all' => 'logoutEverywhere',
+        'addresses/save' => 'saveAddress', 'addresses/delete' => 'deleteAddress', 'addresses/default' => 'setDefaultAddress'] as $path => $action) {
+        $router->post('/customer/' . $path, [$customer, $action]);
+    }
 
     $orders = new OrderController($db, $current);
     $router->post('/customer/orders', [$orders, 'submit']);

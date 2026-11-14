@@ -1,3 +1,4 @@
+<?php if (!($data['preview'] ?? false)) { require __DIR__ . '/live/overview.php'; return; } ?>
 <?php use App\UI\UI as U; $sample = $data['sample']; $order = $sample['orders'][0]; $steps = array_slice($sample['progress'], 0, 5); ?>
 <?= U::heading('Good morning, '.explode(' ', $data['roleInfo']['name'])[0]) ?>
 <section class="panel p-4 md:p-6">

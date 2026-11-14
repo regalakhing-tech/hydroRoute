@@ -295,7 +295,7 @@
                 const [lat, lon] = el.dataset.distanceTo.split(',').map(Number);
                 el.textContent = (meters(here, {lat, lon}) / 1000).toFixed(1) + ' km from you';
             });
-            if (status) status.textContent = 'Location on (±' + here.acc + ' m).';
+            if (status) status.textContent = 'Location on · ±' + here.acc + ' m';
             const now = Date.now();
             if (last && now - lastSent < 30000 && meters(last, here) < 50) return;
             last = here; lastSent = now;
@@ -303,6 +303,6 @@
             data.set('_token', tracker.dataset.token); data.set('trip_id', tracker.dataset.riderTrack);
             data.set('latitude', here.lat.toFixed(6)); data.set('longitude', here.lon.toFixed(6)); data.set('accuracy', String(here.acc));
             try { await fetch('/rider/trips/location', {method: 'POST', body: data, credentials: 'same-origin', headers: {Accept: 'application/json'}}); } catch { /* next fix retries */ }
-        }, () => { if (status) status.textContent = 'Location is off. You can still record arrivals with a reason.'; }, {enableHighAccuracy: true, maximumAge: 15000, timeout: 20000});
+        }, () => { if (status) status.textContent = 'Location off · arrivals need a reason'; }, {enableHighAccuracy: true, maximumAge: 15000, timeout: 20000});
     }
 })();

@@ -8,7 +8,11 @@ use App\UI\UI as U;
 
 $live = Workspace::get()->load(static fn (Workspace $w): array => $w->trip(null));
 if (isset($live['error']) || empty($live['trip'])): ?>
-<div class="mx-auto max-w-4xl space-y-4"><?= U::heading("Today’s trip") ?><section class="rounded-2xl bg-water p-4 text-white md:p-5"><div class="flex items-center gap-3"><span class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white/15"><?= U::icon('truck','size-6') ?></span><div><h2 class="text-lg font-bold">No trip assigned</h2><p class="text-sm"><?= U::e($live['error'] ?? 'When the station dispatches a trip to you, its stops appear here in visiting order.') ?></p></div></div></section><?= U::btn('Refresh', '/rider', 'primary', 'refresh', ['class' => 'w-full']) ?></div>
+<?php if (!isset($live['error'])): ?><div data-poll-url="/rider/trips/current" data-poll-version="none" data-poll-seconds="20" hidden></div><?php endif ?>
+<div class="mx-auto max-w-4xl space-y-4"><?= U::heading("Today’s trip") ?><section class="rounded-2xl bg-water p-5 text-white"><div class="flex items-start gap-3.5"><span class="flex size-12 shrink-0 items-center justify-center rounded-xl bg-white/15"><?= U::icon('truck','size-6') ?></span><div><h2 class="text-lg font-bold">No trip assigned</h2><p class="mt-0.5 text-sm text-white/90"><?= U::e($live['error'] ?? 'When the station dispatches a trip to you, its stops appear here in visiting order.') ?></p></div></div>
+<?php if (!isset($live['error'])): ?><p class="mt-4 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-xs font-semibold"><span class="size-2 animate-pulse rounded-full bg-emerald-300"></span>Waiting for a trip · this page updates by itself</p><?php endif ?></section>
+<section class="panel p-4"><h3 class="flex items-center gap-2 font-semibold"><?= U::icon('check','size-4 text-water') ?>Before your next trip</h3><ul class="mt-2 space-y-1.5 text-sm text-muted"><li class="flex gap-2"><span class="text-water">•</span>Turn on location so arrivals confirm the delivery fee.</li><li class="flex gap-2"><span class="text-water">•</span>Bring change and count the empty containers on board.</li><li class="flex gap-2"><span class="text-water">•</span>Hand over cash and empties at the station after each trip.</li></ul></section>
+<div class="grid grid-cols-2 gap-2.5"><?= U::btn('Refresh', '/rider', 'primary', 'refresh') ?><?= U::btn('History', '/rider/history', 'secondary', 'clock') ?></div></div>
 <?php return; endif;
 $t = $live['trip']; $stops = $live['stops'];
 $open = array_values(array_filter($stops, fn($s) => in_array($s['state'], ['pending','arrived'], true)));
@@ -19,12 +23,17 @@ $done = count($stops) - count($open);
 <div class="mx-auto max-w-4xl space-y-4">
 <?= U::heading("Today’s trip") ?>
 <section class="rounded-2xl bg-water p-4 text-white md:p-5">
-    <div class="flex items-center justify-between gap-3">
-        <div class="flex min-w-0 items-center gap-3"><span class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white/15"><?= U::icon('truck','size-6') ?></span><div class="min-w-0"><h2 class="text-lg font-bold">Trip <?= (int) $t['trip_no'] ?></h2><p class="flex items-center gap-1.5 truncate text-sm"><?= U::icon('store','size-4 shrink-0') ?><?= U::e($live['station']['name'] ?? '') ?></p></div></div>
-        <span class="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-bold text-water"><?= $done ?> of <?= count($stops) ?> stops</span>
+    <div class="flex items-start gap-3">
+        <span class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white/15"><?= U::icon('truck','size-6') ?></span>
+        <div class="min-w-0 flex-1"><div class="flex items-center justify-between gap-2"><h2 class="text-lg font-bold">Trip <?= (int) $t['trip_no'] ?></h2><span class="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-bold text-water"><?= $done ?> of <?= count($stops) ?> stops</span></div>
+        <p class="mt-0.5 flex items-start gap-1.5 text-sm text-white/90"><?= U::icon('store','mt-0.5 size-4 shrink-0') ?><span class="break-words"><?= U::e($live['station']['name'] ?? '') ?></span></p></div>
     </div>
     <div class="mt-4 flex gap-1.5" role="progressbar" aria-label="Trip progress" aria-valuemin="0" aria-valuemax="<?= count($stops) ?>" aria-valuenow="<?= $done ?>" aria-valuetext="<?= $done ?> of <?= count($stops) ?> stops completed"><?php foreach ($stops as $i => $s): ?><span class="h-2 flex-1 rounded-full <?= $i < $done ? 'bg-white' : 'bg-white/30' ?>"></span><?php endforeach ?></div>
-    <p class="mt-3 flex items-center gap-1.5 text-sm"><?= U::icon('calendar','size-4') ?><?= U::e(S::time($t['dispatched_at'], 'l, F j, Y')) ?> · <span data-location-status>Checking location…</span></p>
+    <div class="mt-3 flex flex-wrap gap-1.5 text-xs font-semibold">
+        <span class="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1"><?= U::icon('calendar','size-3.5') ?><?= U::e(S::time($t['dispatched_at'], 'D, M j · g:i A')) ?></span>
+        <span class="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1"><?= U::icon('bottle','size-3.5') ?><?= (int) $t['load_units'] ?> of <?= (int) $t['capacity'] ?> containers</span>
+        <span class="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1"><?= U::icon('pin','size-3.5') ?><span data-location-status>Checking location…</span></span>
+    </div>
 </section>
 <?php if ($stop === null): ?>
 <section class="panel space-y-3 p-4 md:p-6"><h2 class="text-xl font-bold">All stops have a result</h2><p class="text-sm text-muted">Return to the station, hand over the cash and empty containers, then close the trip.</p><?= F::button('/rider/trips/close', ['trip_id' => $t['id'], 'expected_version' => $t['version']], 'I am back · close trip', 'primary', 'check', null, 'rider-action w-full') ?></section>
@@ -34,7 +43,7 @@ $done = count($stops) - count($open);
         <div class="flex items-center justify-between gap-3"><p class="flex items-center gap-2 text-sm font-semibold text-water"><?= U::icon('user','size-4') ?>Next delivery · stop <?= (int) $stop['sequence'] ?></p><span id="delivery-status"><?= U::badge($stop['state'] === 'arrived' ? 'Arrived' : 'Assigned', $stop['state'] === 'arrived' ? 'amber' : 'blue') ?></span></div>
         <h2 class="mt-1.5 text-2xl font-bold tracking-tight"><?= U::e($o['customer_name'] ?? '') ?></h2>
         <p class="mt-2 flex items-start gap-2 text-sm"><?= U::icon('pin','mt-0.5 size-4 shrink-0 text-water') ?><?= U::e($o['address_text'] ?? '') ?></p>
-        <p class="mt-1 flex items-start gap-2 text-sm text-muted"><?= U::icon('home','mt-0.5 size-4 shrink-0') ?><?= U::e(($o['landmark'] ?? '') !== '' ? $o['landmark'] : number_format((float) $stop['station_km'], 1) . ' km from the station') ?><?php if ($o['latitude'] !== null): ?> · <span data-distance-to="<?= U::e($o['latitude'] . ',' . $o['longitude']) ?>"></span><?php endif ?></p>
+        <p class="mt-1 flex items-start gap-2 text-sm text-muted"><?= U::icon('home','mt-0.5 size-4 shrink-0') ?><?= U::e(($o['landmark'] ?? '') !== '' ? $o['landmark'] : number_format((float) $stop['station_km'], 1) . ' km from the station') ?><?php if ($o['latitude'] !== null): ?><span data-distance-to="<?= U::e($o['latitude'] . ',' . $o['longitude']) ?>" class="whitespace-nowrap empty:hidden before:mr-1 before:content-['·']"></span><?php endif ?></p>
     </div>
     <div class="grid grid-cols-2 gap-2.5"><?= U::btn('Call', 'tel:' . ($o['contact_phone'] ?? ''), 'secondary', 'phone') ?><?= U::btn('Address','','secondary','pin',['data-dialog-open'=>'rider-stop-address']) ?></div>
     <dl class="grid grid-cols-3 gap-2 text-center">

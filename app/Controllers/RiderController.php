@@ -51,6 +51,18 @@ final class RiderController extends LiveController
     }
 
     /** POST /rider/trips/location from the trip page during an active trip; JSON, CSRF-checked. */
+    /** Poll for the "My trip" page: changes when a trip is assigned, closed or a stop changes state. */
+    public function current(): Response
+    {
+        return $this->json('rider', function (array $user, string $token): array {
+            $result = $this->db->rpc('get_trip', ['p_trip_id' => null], $token);
+            if (($result['ok'] ?? false) !== true) return $result;
+            $trip = $result['data']['trip'] ?? null;
+            $states = array_map(static fn (array $s): string => $s['id'] . ':' . $s['state'], $result['data']['stops'] ?? []);
+            return ['ok' => true, 'data' => ['version' => $trip === null ? 'none' : substr(hash('sha256', $trip['id'] . ':' . $trip['version'] . '|' . implode('|', $states)), 0, 16)]];
+        });
+    }
+
     public function location(): Response
     {
         $user = Session::user();

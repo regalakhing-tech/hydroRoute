@@ -20,7 +20,7 @@ check(Products::quote(['round'=>'-1','faucet'=>'999'])['quantity'] === 20, 'Boun
 check(Products::get(['round']) === null && Products::get('unknown') === null, 'Unknown references rejected');
 check(Products::quote(['round'=>'1','unknown'=>'20'])['total'] === 20, 'Unknown basket keys ignored');
 check([Products::deliveryFee(0.5), Products::deliveryFee(1), Products::deliveryFee(3), Products::deliveryFee(3.1), Products::deliveryFee(5)] === [5, 10, 10, 15, 15], 'Delivery fee distance tiers');
-check(str_contains(UI::productImage(), 'water-jug.png'), 'Existing image helper defaults round');
-check(str_contains(UI::productImage('h-20', 'bottle350'), 'water-bottle.png'), 'Bottle image identity');
-check(str_contains(UI::productImage('h-20', 'faucet'), 'faucet-container.png'), 'Faucet image identity');
+check(str_contains(UI::productImage(), 'water-jug.webp'), 'Existing image helper defaults round');
+check(str_contains(UI::productImage('h-20', 'bottle350'), 'water-bottle.webp'), 'Bottle image identity');
+check(str_contains(UI::productImage('h-20', 'faucet'), 'faucet-container.webp'), 'Faucet image identity');
 echo "$checks catalogue assertions passed.\n";

@@ -62,7 +62,7 @@ for(const [path,id]of [['/customer/orders','order_search'],['/customer/stations'
     const p=await page('/customer/checkout?station=guintas&round=2&faucet=1&bottle350=3');
     check(p.d.querySelector('[data-checkout-total]').textContent==='PHP 730.00','mixed checkout total with PHP 10 delivery fee');
     check(p.d.querySelector('#return-quantity').value==='3','mixed checkout returnable count');
-    for(const image of ['water-jug.png','faucet-container.png','water-bottle.png'])check(p.d.querySelector(`aside img[src$="${image}"]`),'item thumbnail '+image);
+    for(const image of ['water-jug.webp','faucet-container.webp','water-bottle.webp'])check(p.d.querySelector(`aside img[src$="${image}"]`),'item thumbnail '+image);
     check(p.d.body.textContent.includes('3 boxes')&&p.d.body.textContent.includes('1 container '),'box and singular units');p.close();
     const bottles=await page('/customer/checkout?bottle350=4');
     check(bottles.d.querySelector('#return-quantity').value==='0','bottle-only order needs no returns');bottles.close();

@@ -28,6 +28,8 @@ for (const [path, type] of Object.entries({
     assert.equal(response.status, 200, `${path} must load`);
     assert.ok(response.headers.get('content-type')?.includes(type), `${path} must have the expected type`);
     assert.ok((await response.arrayBuffer()).byteLength > 0, `${path} must contain data`);
+    const cache = response.headers.get('cache-control') ?? '';
+    assert.match(cache, type.startsWith('image/') ? /^public, max-age=604800/ : /^public, max-age=0/, `${path} must be cacheable by the CDN`);
     checks++;
 }
 

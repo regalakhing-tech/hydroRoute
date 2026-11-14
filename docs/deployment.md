@@ -35,7 +35,9 @@ The `.vercelignore` file excludes environment files, thesis sources, documentati
 
 ## Sessions and scheduled work
 
-Customer login uses native PHP file sessions, which work locally but are not shared between Vercel instances. Before deploying login, use a durable session design compatible with separate serverless instances; do not use local PHP session files for production. Protect access and refresh tokens and use secure HttpOnly cookies for the browser-facing session.
+Local development uses native PHP file sessions. On Vercel (`VERCEL` is set), sessions are stored in Supabase `public.app_sessions` through `App\Services\SessionStore`, because separate serverless instances do not share files. Run `supabase/migrations/20261114130000_app_sessions.sql` in the Supabase SQL Editor before deploying; without it every login fails with "Your session expired". Rows are keyed by a SHA-256 of the HttpOnly session cookie and are reachable only with the secret key.
+
+Functions run in `hnd1` (Tokyo), next to the Supabase project (`ap-northeast-1`). Change `regions` in `vercel.json` if the database moves.
 
 For the future one-minute order release and five-minute queue refresh, use Supabase Cron for database functions. Do not depend on a continuously running PHP process or a station browser. Email work can run in a separately configured hosted worker or Edge Function. See [Supabase Cron](https://supabase.com/docs/guides/cron).
 

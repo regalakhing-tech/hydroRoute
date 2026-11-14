@@ -34,7 +34,7 @@ foreach (['/.env','/config/supabase.php','/bootstrap.php','/unknown-page','/asse
     @file_get_contents($base . $path, false, stream_context_create(['http'=>['ignore_errors'=>true]]));
     if (!str_contains($http_response_header[0] ?? '', '404')) $failures[] = "Private or missing path should be 404: $path";
 }
-foreach (['/assets/css/app.css'=>'text/css','/assets/js/app.js'=>'javascript','/assets/images/hero-water.png'=>'image/png','/assets/images/water-jug.png'=>'image/png'] as $path=>$type) {
+foreach (['/assets/css/app.css'=>'text/css','/assets/js/app.js'=>'javascript','/assets/images/hero-water.webp'=>'image/webp','/assets/images/water-jug.webp'=>'image/webp'] as $path=>$type) {
     @file_get_contents($base . $path, false, stream_context_create(['http'=>['ignore_errors'=>true]]));
     if (!str_contains(implode(' ', $http_response_header ?? []), $type)) $failures[] = "Wrong asset type: $path";
 }

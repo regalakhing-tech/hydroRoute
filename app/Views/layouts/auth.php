@@ -3,7 +3,7 @@
 <div class="min-h-screen lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] 2xl:grid-cols-[680px_minmax(0,1fr)]">
     <aside class="relative hidden overflow-clip bg-foam lg:block">
         <div class="sticky top-0 isolate flex h-screen min-h-[640px] flex-col px-10 py-9 xl:px-14 xl:py-12">
-            <img src="/assets/images/hero-water.png" alt="" class="absolute inset-0 -z-10 h-full w-full object-cover object-[93%_center]" width="1536" height="1024" fetchpriority="high">
+            <img src="/assets/images/hero-water.webp" alt="" class="absolute inset-0 -z-10 h-full w-full object-cover object-[93%_center]" width="1536" height="1024" fetchpriority="high">
             <div class="absolute inset-0 -z-10 bg-linear-to-b from-mist via-mist/85 via-35% to-transparent to-70%"></div>
             <a href="/" class="flex items-center gap-2 font-heading text-[26px] font-bold tracking-tight"><?= U::logo('h-10') ?></a>
             <div class="mt-12 max-w-md xl:mt-16">

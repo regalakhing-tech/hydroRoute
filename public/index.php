@@ -24,10 +24,10 @@ try {
         '/assets/js/app.js' => ['file' => __DIR__ . '/assets/js/app.js', 'type' => 'text/javascript; charset=utf-8'],
         '/assets/js/messages.js' => ['file' => __DIR__ . '/assets/js/messages.js', 'type' => 'text/javascript; charset=utf-8'],
         '/assets/js/fulfillment.js' => ['file' => __DIR__ . '/assets/js/fulfillment.js', 'type' => 'text/javascript; charset=utf-8'],
-        '/assets/images/hero-water.png' => ['file' => __DIR__ . '/assets/images/hero-water.png', 'type' => 'image/png'],
-        '/assets/images/water-jug.png' => ['file' => __DIR__ . '/assets/images/water-jug.png', 'type' => 'image/png'],
-        '/assets/images/water-bottle.png' => ['file' => __DIR__ . '/assets/images/water-bottle.png', 'type' => 'image/png'],
-        '/assets/images/faucet-container.png' => ['file' => __DIR__ . '/assets/images/faucet-container.png', 'type' => 'image/png'],
+        '/assets/images/hero-water.webp' => ['file' => __DIR__ . '/assets/images/hero-water.webp', 'type' => 'image/webp'],
+        '/assets/images/water-jug.webp' => ['file' => __DIR__ . '/assets/images/water-jug.webp', 'type' => 'image/webp'],
+        '/assets/images/water-bottle.webp' => ['file' => __DIR__ . '/assets/images/water-bottle.webp', 'type' => 'image/webp'],
+        '/assets/images/faucet-container.webp' => ['file' => __DIR__ . '/assets/images/faucet-container.webp', 'type' => 'image/webp'],
         '/assets/images/logo.png' => ['file' => __DIR__ . '/assets/images/logo.png', 'type' => 'image/png'],
         '/assets/images/logo-icon.png' => ['file' => __DIR__ . '/assets/images/logo-icon.png', 'type' => 'image/png'],
         '/assets/fonts/inter-latin-wght.woff2' => ['file' => __DIR__ . '/assets/fonts/inter-latin-wght.woff2', 'type' => 'font/woff2'],
@@ -41,10 +41,22 @@ try {
         if ($body === false) {
             throw new RuntimeException('An application asset is unavailable.');
         }
-        $response = new Response($body, 200, ['Content-Type' => $assets[$path]['type']]);
+        // Vercel's CDN keeps every asset until the next deploy purges it, so repeat requests skip PHP.
+        // Browsers keep photos and fonts; CSS/JS URLs are not versioned, so browsers recheck them each page.
+        // shortcut: a replaced image can show stale for up to 7 days in browsers, rename the file to force a refresh.
+        $browser = preg_match('#^(image|font)/#', $assets[$path]['type']) ? 'max-age=604800' : 'max-age=0';
+        $response = new Response($body, 200, [
+            'Content-Type' => $assets[$path]['type'],
+            'Cache-Control' => 'public, ' . $browser . ', s-maxage=31536000',
+        ]);
     } else {
-        App\Core\Session::start(str_starts_with($config['app']['url'], 'https://'));
+        // Vercel runs many short-lived instances, so sessions live in Supabase instead of local files.
+        App\Core\Session::start(
+            str_starts_with($config['app']['url'], 'https://'),
+            getenv('VERCEL') === false ? null : new App\Services\SessionStore(new App\Services\SupabaseClient($config['supabase'])),
+        );
         $response = $router->dispatch($method, $path);
+        session_write_close(); // save before the redirect reaches the browser, so its next request sees the login
     }
 
     $response->send($method === 'HEAD');

@@ -7,8 +7,8 @@ namespace App\Core;
 /** Thin wrapper over $_SESSION so controllers and tests share one shape. */
 final class Session
 {
-    // shortcut: native PHP file sessions; Vercel instances do not share them, so move to a durable store before deploying login.
-    public static function start(bool $secure): void
+    /** A null store keeps native file sessions (local development); Vercel instances need a shared store. */
+    public static function start(bool $secure, ?\SessionHandlerInterface $store = null): void
     {
         if (PHP_SAPI === 'cli' || session_status() === PHP_SESSION_ACTIVE) {
             return;
@@ -17,6 +17,9 @@ final class Session
         ini_set('session.gc_maxlifetime', '28800');
         session_name('hydroroute_session');
         session_set_cookie_params(['lifetime' => 0, 'path' => '/', 'secure' => $secure, 'httponly' => true, 'samesite' => 'Lax']);
+        if ($store !== null) {
+            session_set_save_handler($store, true);
+        }
         session_start();
     }
 

@@ -207,12 +207,16 @@ final class AuthController extends Controller
         }
 
         $station = $access['stations'][0] ?? null;
+        // Each login page accepts only its own kind of account. Drivers and owners also hold the customer
+        // role, so the customer page refuses staff accounts. A wrong page reads like a wrong password.
+        $staff = array_intersect(['super_admin', 'station_admin', 'rider'], $access['roles']) !== [];
         $allowed = in_array(self::ROLES[$role], $access['roles'], true)
             && !($role !== 'super-admin' && in_array('super_admin', $access['roles'], true))
+            && !($role === 'customer' && $staff)
             && (!in_array($role, ['station-admin', 'rider'], true) || $station !== null);
         if (!$allowed) {
             $this->quietSignOut($session['access_token']);
-            return $this->back($loginPath, 'error', 'This account does not have ' . Pages::roles()[$role]['label'] . ' access.');
+            return $this->back($loginPath, 'error', 'Wrong email or password.');
         }
         if ($role === 'station-admin' && count($access['stations']) > 1) $station = null;
         $this->startSession($session, $role, in_array($role, ['station-admin', 'rider'], true) ? $station : null);

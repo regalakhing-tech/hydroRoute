@@ -1,3 +1,4 @@
+<?php if (!($data['preview'] ?? false)) { require __DIR__ . '/setup/service-areas.php'; return; } ?>
 <?php use App\UI\UI as U; $s=$data['sample']; ?>
 <?= U::heading('Station settings','Manage '.$info['caption'].'.') ?>
 <?= U::tabs(['/station-admin/settings'=>'Station profile','/station-admin/settings/service-areas'=>'Service areas','/station-admin/settings/order-rules'=>'Order rules'],'/station-admin/settings/service-areas') ?>

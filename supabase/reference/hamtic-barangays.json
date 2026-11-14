@@ -1,0 +1,196 @@
+{
+  "municipality_code": "0600608000",
+  "source": "https://psa.gov.ph/classification/psgc/barangays/0600608000",
+  "retrieved_on": "2026-11-14",
+  "license": "CC BY 4.0",
+  "barangays": [
+    {
+      "psgc_code": "0600608001",
+      "name": "Apdo"
+    },
+    {
+      "psgc_code": "0600608002",
+      "name": "Asluman"
+    },
+    {
+      "psgc_code": "0600608003",
+      "name": "Banawon"
+    },
+    {
+      "psgc_code": "0600608005",
+      "name": "Bia-an"
+    },
+    {
+      "psgc_code": "0600608006",
+      "name": "Bongbongan I-II"
+    },
+    {
+      "psgc_code": "0600608008",
+      "name": "Bongbongan III"
+    },
+    {
+      "psgc_code": "0600608009",
+      "name": "Botbot"
+    },
+    {
+      "psgc_code": "0600608010",
+      "name": "Budbudan"
+    },
+    {
+      "psgc_code": "0600608011",
+      "name": "Buhang"
+    },
+    {
+      "psgc_code": "0600608012",
+      "name": "Calacja I"
+    },
+    {
+      "psgc_code": "0600608013",
+      "name": "Calacja II"
+    },
+    {
+      "psgc_code": "0600608014",
+      "name": "Calala"
+    },
+    {
+      "psgc_code": "0600608015",
+      "name": "Cantulan"
+    },
+    {
+      "psgc_code": "0600608016",
+      "name": "Caridad"
+    },
+    {
+      "psgc_code": "0600608017",
+      "name": "Caromangay"
+    },
+    {
+      "psgc_code": "0600608018",
+      "name": "Casalngan"
+    },
+    {
+      "psgc_code": "0600608019",
+      "name": "Dangcalan"
+    },
+    {
+      "psgc_code": "0600608020",
+      "name": "Del Pilar"
+    },
+    {
+      "psgc_code": "0600608021",
+      "name": "Fabrica"
+    },
+    {
+      "psgc_code": "0600608022",
+      "name": "Funda"
+    },
+    {
+      "psgc_code": "0600608023",
+      "name": "General Fullon"
+    },
+    {
+      "psgc_code": "0600608024",
+      "name": "Guintas"
+    },
+    {
+      "psgc_code": "0600608025",
+      "name": "Igbical"
+    },
+    {
+      "psgc_code": "0600608026",
+      "name": "Igbucagay"
+    },
+    {
+      "psgc_code": "0600608027",
+      "name": "Inabasan"
+    },
+    {
+      "psgc_code": "0600608028",
+      "name": "Ingwan-Batangan"
+    },
+    {
+      "psgc_code": "0600608029",
+      "name": "La Paz"
+    },
+    {
+      "psgc_code": "0600608030",
+      "name": "Gov. Evelio B. Javier"
+    },
+    {
+      "psgc_code": "0600608031",
+      "name": "Linaban"
+    },
+    {
+      "psgc_code": "0600608033",
+      "name": "Malandog"
+    },
+    {
+      "psgc_code": "0600608034",
+      "name": "Mapatag"
+    },
+    {
+      "psgc_code": "0600608035",
+      "name": "Masanag"
+    },
+    {
+      "psgc_code": "0600608036",
+      "name": "Nalihawan"
+    },
+    {
+      "psgc_code": "0600608037",
+      "name": "Pamandayan"
+    },
+    {
+      "psgc_code": "0600608038",
+      "name": "Pasu-Jungao"
+    },
+    {
+      "psgc_code": "0600608039",
+      "name": "Piapi I"
+    },
+    {
+      "psgc_code": "0600608040",
+      "name": "Piapi II"
+    },
+    {
+      "psgc_code": "0600608041",
+      "name": "Piapi III"
+    },
+    {
+      "psgc_code": "0600608042",
+      "name": "Pili 1, 2, 3"
+    },
+    {
+      "psgc_code": "0600608045",
+      "name": "Poblacion 1"
+    },
+    {
+      "psgc_code": "0600608046",
+      "name": "Poblacion 2"
+    },
+    {
+      "psgc_code": "0600608047",
+      "name": "Poblacion 3"
+    },
+    {
+      "psgc_code": "0600608048",
+      "name": "Poblacion 4"
+    },
+    {
+      "psgc_code": "0600608049",
+      "name": "Poblacion 5"
+    },
+    {
+      "psgc_code": "0600608050",
+      "name": "Pu-ao"
+    },
+    {
+      "psgc_code": "0600608051",
+      "name": "Suloc"
+    },
+    {
+      "psgc_code": "0600608053",
+      "name": "Villavert-Jimenez"
+    }
+  ]
+}

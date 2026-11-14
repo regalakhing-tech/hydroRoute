@@ -208,12 +208,13 @@ final class AuthController extends Controller
 
         $station = $access['stations'][0] ?? null;
         $allowed = in_array(self::ROLES[$role], $access['roles'], true)
-            && !($role === 'customer' && in_array('super_admin', $access['roles'], true))
+            && !($role !== 'super-admin' && in_array('super_admin', $access['roles'], true))
             && (!in_array($role, ['station-admin', 'rider'], true) || $station !== null);
         if (!$allowed) {
             $this->quietSignOut($session['access_token']);
             return $this->back($loginPath, 'error', 'This account does not have ' . Pages::roles()[$role]['label'] . ' access.');
         }
+        if ($role === 'station-admin' && count($access['stations']) > 1) $station = null;
         $this->startSession($session, $role, in_array($role, ['station-admin', 'rider'], true) ? $station : null);
         Session::keepInput([]);
 
@@ -289,7 +290,9 @@ final class AuthController extends Controller
             in_array('rider', $access['roles'], true) && $access['stations'] !== [] => 'rider',
             default => 'customer',
         };
-        $this->startSession($session, $role, in_array($role, ['station-admin', 'rider'], true) ? $access['stations'][0] : null);
+        $station = in_array($role, ['station-admin', 'rider'], true) ? $access['stations'][0] : null;
+        if ($role === 'station-admin' && count($access['stations']) > 1) $station = null;
+        $this->startSession($session, $role, $station);
 
         return $this->back('/' . $role, 'success', 'Your password is set. Welcome, ' . explode(' ', $_SESSION['user']['name'])[0] . '!');
     }

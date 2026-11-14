@@ -32,7 +32,10 @@ await insert('private.user_roles','user_id,role',[[admin,'station_admin'],[admin
 await insert('public.stations','id,name,address,registration_status,active',[[station,'Guintas','Guintas, Hamtic','approved',true],[station2,'Poblacion','Poblacion, Hamtic','approved',true],[suspended,'Suspended station','Hamtic','suspended',true],[inactive,'Inactive station','Hamtic','approved',false]]);
 await insert('public.stations','id,name,address',[[pending,'Pending station','Hamtic']]);
 await insert('private.station_memberships','user_id,station_id,active',[[admin,station,true],[admin2,station2,true],[superadmin,station,true],[inactiveAdmin,station,false]]);
+// Post-Phase-2 fixtures explicitly provision the protected station role; global roles never authorize it.
+await insert('private.station_membership_roles','user_id,station_id,role,active',[[admin,station,'station_admin',true],[admin2,station2,'station_admin',true],[superadmin,station,'station_admin',true],[inactiveAdmin,station,'station_admin',false]]);
 await insert('public.addresses','id,customer_id,label,address',[[address,customer,'Home','Guintas'],[otherAddress,other,'Home','Poblacion'],[superAddress,superadmin,'Home','Guintas']]);
+await db.exec('delete from public.products');
 await insert('public.products','id,station_id,name,price_centavos,active',[[round,station,'Round refill',2000,true],[faucet,station,'Faucet refill',2000,true],[bottle,station,'Water bottle',1200,true],[otherProduct,station2,'Round refill',2000,true],[pendingProduct,pending,'Water bottle',1200,true],[inactiveProduct,station,'Hidden product',1200,false]]);
 await insert('public.orders','id,station_id,customer_id,fulfillment,address_id,status',[[order,station,customer,'delivery',address,'confirmed'],[otherOrder,station2,other,'delivery',otherAddress,'confirmed'],[superOrder,station,superadmin,'delivery',superAddress,'confirmed']]);
 await insert('public.orders','id,station_id,customer_id,fulfillment,status',[[pickup,station,customer,'pickup','ready']]);

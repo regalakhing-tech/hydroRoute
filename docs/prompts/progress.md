@@ -1,8 +1,22 @@
 # HydroRoute customer and station-owner progress
 
-Scope: [requested nine-phase prompt](2026-11-14-build-customer-and-station-owner.md). Updated 14 November 2026, Asia/Manila.
+Scope follows the [requested implementation prompt](2026-11-14-build-customer-and-station-owner.md), limited by the user's 15 November instruction to finish through Phase 3 only. Updated 15 November 2026, Asia/Manila.
 
-**Current checkpoint: design approved; Phase 2 local implementation is in progress.** The user's "continue all" authorizes the [design and its recommended decisions](2026-11-14-customer-station-owner-design.md). The separate per-migration SQL Editor application/confirmation requirement remains in force.
+**Current checkpoint — Phase 2 local implementation and review are ready for the user-run SQL Editor migration.** The user's "continue all" authorized the [design and its recommended decisions](2026-11-14-customer-station-owner-design.md). The separate per-migration SQL Editor application/confirmation requirement remains in force. Follow the [migration checkpoint](2026-11-15-phase-2-migration-checkpoint.md) before continuing Phase 3.
+
+The latest scope ends after Phase 3 customer profiles, addresses, catalogue, delivery quote and real overview projection. Phases 4–9 remain outside the current authorization. Each phase still requires the user-run migration checkpoint from section 6 of the supplied prompt.
+
+### Phase 2 local preparation, 15 November
+
+Owner forms, checked PHP service/controller, routes, explicit station selection, context loading, credential authorization guard and public availability integration are implemented locally. The migration and independent reviews are complete locally. SQL suites passed 155 station setup, 107 security and 37 registry assertions. PHP suites passed 151 station setup, 63 registry and 15 integration assertions, alongside the existing auth/session/catalogue checks. Focused DOM checks passed 36 groups, and preview checks passed 47 pages with 281 assertions. Hosted installation and acceptance remain pending.
+
+The feature branch is `feat/live-station-workflows`. Existing shared session/WebP work was preserved in commit `b85c9b3`, followed by approved design documents in `68f7e9a`. Phase 2 changes have not been pushed or deployed.
+
+Closure modes use temporary closure, maintenance and no operations. Each blocks service within its interval. Finite closures allow valid later service windows, while indefinite manual closures block new bookings until reopening.
+
+The read-only hosted preflight found three approved stations, valid legacy hours and zero duplicate default catalogue names. Two global owner accounts have zero station memberships and need explicit trusted assignment. Browser screenshot QA is pending because the automation tool could not verify Chrome's current URL. Independent-session concurrency remains pending.
+
+The SQL Editor handoff was sent to the user. Phase 3 implementation awaits migration confirmation and read-only hosted verification.
 
 ## Phase status
 

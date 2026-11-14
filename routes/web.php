@@ -7,6 +7,7 @@ use App\Controllers\HomeController;
 use App\Controllers\RegistrationController;
 use App\Controllers\RegistryController;
 use App\Controllers\StationController;
+use App\Controllers\StationSettingsController;
 use App\Controllers\UIController;
 use App\UI\Pages;
 use App\Controllers\SystemController;
@@ -16,6 +17,8 @@ use App\Services\Invitations;
 use App\Services\Mailer;
 use App\Services\Registry;
 use App\Services\StationDirectory;
+use App\Services\StationContext;
+use App\Services\StationSetup;
 use App\Services\SupabaseClient;
 
 return static function (Router $router, array $config): void {
@@ -29,9 +32,12 @@ return static function (Router $router, array $config): void {
     $auth = new AuthController($supabase, $mailer);
     $registration = new RegistrationController($registry);
     $registryAdmin = new RegistryController($registry, $invitations, $current);
-    $station = new StationController($supabase, $registry, $current);
+    $stationContext = new StationContext($supabase);
+    $stationSetup = new StationSetup($supabase, $stationContext);
+    $station = new StationController($supabase, $registry, $current, $stationSetup);
+    $stationSettings = new StationSettingsController($stationSetup, $current);
 
-    $ui = new UIController($config['app']['preview'], new StationDirectory($supabase), $registry, $current);
+    $ui = new UIController($config['app']['preview'], new StationDirectory($supabase), $registry, $current, $stationSetup);
     $router->get('/', [$ui, 'home']);
     $router->get('/thesis', [$home, 'index']);
     $router->get('/login', static fn () => $ui->login());
@@ -54,6 +60,16 @@ return static function (Router $router, array $config): void {
     $router->post('/super-admin/application/invite', [$registryAdmin, 'resendInvite']);
     $router->post('/station-admin/drivers', [$station, 'addDriver']);
     $router->post('/station-admin/drivers/password', [$station, 'setDriverPassword']);
+    foreach ([
+        'settings/profile'=>'profile', 'settings/location'=>'location',
+        'settings/service-areas'=>'serviceAreas', 'settings/order-rules'=>'settings',
+        'settings/delivery-fees'=>'fees', 'products/save'=>'product',
+        'schedules/hours'=>'hours', 'schedules/closure'=>'closure',
+        'schedules/closure/cancel'=>'cancelClosure', 'schedules/reopen'=>'reopen',
+        'switch-station'=>'switchStation',
+    ] as $path => $action) {
+        $router->post('/station-admin/'.$path, [$stationSettings, $action]);
+    }
     foreach (Pages::routes() as $path => $page) {
         $router->get($path, static fn () => $ui->page($page['role'], $page['screen']));
     }

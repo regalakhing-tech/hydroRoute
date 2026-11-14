@@ -1,3 +1,4 @@
+<?php if (!($data['preview'] ?? false)) { require __DIR__ . '/setup/products.php'; return; } ?>
 <?php use App\UI\UI as U;
 $products = \App\UI\Products::all();
 $id = $_GET['product'] ?? 'round';

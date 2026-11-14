@@ -16,6 +16,7 @@ use App\Services\CurrentUser;
 use App\Services\Invitations;
 use App\Services\Registry;
 use App\Services\StationDirectory;
+use App\Services\StationSetup;
 use App\Services\SupabaseException;
 
 $tz = new DateTimeZone('Asia/Manila');
@@ -40,6 +41,7 @@ $maintenance = StationDirectory::present($row(['closed_notice' => 'Under mainten
 check($maintenance['status'] === 'Under maintenance' && $maintenance['tone'] === 'amber' && !$maintenance['available'], 'maintenance notice overrides hours');
 $db = new FakeGateway();
 $db->tables['stations'] = [$row(), $row(['id' => '22222222-2222-4222-8222-222222222222', 'slug' => 'riverside', 'name' => 'Riverside Water Station', 'closed_notice' => 'Under maintenance'])];
+$db->results['list_station_availability'] = ['ok'=>true, 'data'=>['stations'=>array_map(static fn (array $station): array => ['station_id'=>$station['id'], 'label'=>'Open', 'accepting_asap'=>true], $db->tables['stations'])]];
 check(array_column((new StationDirectory($db))->approved($at('2026-11-14 10:00')), 'id') === ['guintas', 'riverside'] && $db->calls[0][3] === null, 'directory reads stations with the visitor key');
 $down = new FakeGateway();
 $down->errors['stations'] = new RuntimeException('Supabase is temporarily unreachable.');
@@ -154,12 +156,32 @@ $response = $login->login('station-admin');
 check(Session::user()['station']['name'] === 'Bia-an Fresh Water' && $response->headers['Location'] === '/station-admin', 'owner logs in with the new password');
 
 // --- Station admin adds a driver with a password (no email) ---
-$stations = new StationController($auth, $registry, $current);
+$db->results['get_operation_context'] = ['ok'=>true, 'data'=>[
+    'actor'=>['id'=>Session::user()['id'], 'roles'=>['station_admin']],
+    'memberships'=>[['station_id'=>$newStation, 'station_name'=>'Bia-an Fresh Water', 'slug'=>'bia-an-fresh-water', 'role'=>'station_admin']],
+    'station'=>['id'=>$newStation, 'name'=>'Bia-an Fresh Water', 'slug'=>'bia-an-fresh-water'],
+    'settings'=>[], 'barangays'=>[], 'service_areas'=>[], 'products'=>[], 'opening_hours'=>[],
+    'closures'=>[], 'availability'=>[], 'fee_rules'=>[],
+]];
+$stations = new StationController($auth, $registry, $current, new StationSetup($db));
 $invitesBefore = count($mailer->invites);
 $driverForm = ['first_name' => 'Juan', 'last_name' => 'Reyes', 'phone' => '0917 555 0101', 'email' => 'Juan.Reyes@Example.com', 'vehicle' => 'Tricycle', 'plate' => 'abc 1234', 'capacity' => '15', 'password' => 'rider-pass1', 'confirm_password' => 'rider-pass1', 'verified' => 'yes'];
+$savedAuth = $_SESSION['auth'];
+unset($_SESSION['auth']);
+$post(['email'=>'missing-token@example.com'] + $driverForm);
+$stations->addDriver();
+check(!isset($auth->users['missing-token@example.com']) && $flash()['type'] === 'info', 'missing current token prevents creating an Auth identity');
+$_SESSION['auth'] = $savedAuth;
+$db->errors['get_operation_context'] = new RuntimeException('Scoped access revoked.');
+$post(['email'=>'revoked-owner@example.com'] + $driverForm);
+$stations->addDriver();
+check(!isset($auth->users['revoked-owner@example.com']) && $flash()['type'] === 'error', 'revoked protected membership prevents creating an Auth identity');
+unset($db->errors['get_operation_context']);
 $post(['capacity' => '500'] + $driverForm);
 $stations->addDriver();
 check($db->called('admin', 'register_driver') === [] && str_contains($flash()['message'], 'capacity'), 'capacity limits checked');
+$retryPage = (new UIController(false, new StationDirectory($db), $registry, $current, new StationSetup($db)))->page('station-admin', 'add-driver');
+check(str_contains($retryPage->body, 'value="500"') && str_contains($retryPage->body, 'Juan.Reyes@Example.com'), 'add-driver error redirect retains submitted nonsecret fields');
 $post(['confirm_password' => 'different1'] + $driverForm);
 $stations->addDriver();
 check(!isset($auth->users['juan.reyes@example.com']) && $flash()['message'] === 'Passwords do not match.', 'password mismatch creates no account');
@@ -194,8 +216,13 @@ $post(['user_id' => $juan, 'password' => 'new-pass-22', 'confirm_password' => 'o
 $stations->setDriverPassword();
 check($auth->users['juan.reyes@example.com']['password'] === 'rider-pass1' && $flash()['message'] === 'Passwords do not match.', 'mismatched new password refused');
 $post(['user_id' => $juan, 'password' => 'new-pass-22', 'confirm_password' => 'new-pass-22']);
+$db->results['authorize_driver_credentials'] = ['ok'=>true, 'data'=>['allowed'=>true]];
 $stations->setDriverPassword();
 check($auth->users['juan.reyes@example.com']['password'] === 'new-pass-22' && $flash()['message'] === 'Password changed. Give Juan Reyes the new password for juan.reyes@example.com.', 'admin sets a new password for their own driver');
+$db->results['authorize_driver_credentials'] = ['ok'=>true, 'data'=>['allowed'=>false]];
+$post(['user_id' => $juan, 'password' => 'blocked-pass-22', 'confirm_password' => 'blocked-pass-22']);
+$stations->setDriverPassword();
+check($auth->users['juan.reyes@example.com']['password'] === 'new-pass-22' && str_contains($flash()['message'], 'administrator-managed'), 'protected shared driver identity cannot have credentials changed by station owner');
 $post(['user_id' => $auth->users['maria@example.com']['id'], 'password' => 'hijack-pass1', 'confirm_password' => 'hijack-pass1']);
 $stations->setDriverPassword();
 check($auth->users['maria@example.com']['password'] === 'customer1' && str_contains($flash()['message'], 'not registered to your station'), 'cannot change the password of an account outside the station');
@@ -206,7 +233,14 @@ check($stations->setDriverPassword()->headers['Location'] === '/login/station-ad
 $_SESSION = $saved;
 
 // --- Database-backed pages ---
-$ui = new UIController(false, new StationDirectory($db), $registry, $current);
+$db->results['get_operation_context'] = ['ok'=>true, 'data'=>[
+    'actor'=>['id'=>Session::user()['id'], 'roles'=>['station_admin']],
+    'memberships'=>[['station_id'=>$newStation, 'station_name'=>'Bia-an Fresh Water', 'slug'=>'bia-an-fresh-water', 'role'=>'station_admin']],
+    'station'=>['id'=>$newStation, 'name'=>'Bia-an Fresh Water', 'slug'=>'bia-an-fresh-water'],
+    'settings'=>[], 'barangays'=>[], 'service_areas'=>[], 'products'=>[], 'opening_hours'=>[],
+    'closures'=>[], 'availability'=>[], 'fee_rules'=>[],
+]];
+$ui = new UIController(false, new StationDirectory($db), $registry, $current, new StationSetup($db));
 $page = $ui->page('station-admin', 'drivers');
 check($page->status === 200 && str_contains($page->body, 'Juan Reyes') && str_contains($page->body, 'juan.reyes@example.com') && !str_contains($page->body, 'Carlo Diaz'), 'drivers page lists database drivers, not samples');
 check(str_contains($page->body, 'action="/station-admin/drivers/password"') && str_contains($page->body, 'data-dialog-open="driver-password-'), 'each driver has a Set password dialog');
@@ -217,6 +251,8 @@ check($ui->page('station-admin', 'overview')->headers['Location'] === '/login/st
 Session::login(['id' => 'user-0', 'email' => 'admin@hydroroute.test', 'name' => 'Registry Admin', 'role' => 'super-admin', 'station' => null], ['access_token' => 'token-user-0', 'refresh_token' => 'refresh-user-0', 'expires_at' => 2_000_000_000]);
 $db->tables['station_registrations'] = [['id' => $application, 'station_name' => 'Malandog Clear Water', 'barangay' => 'Malandog', 'address' => 'Purok 3', 'station_phone' => '+639171112233', 'station_email' => '', 'owner_name' => 'Roberto Perez', 'owner_email' => 'roberto@example.com', 'owner_phone' => '+639181112233', 'owner_role' => 'Owner', 'status' => 'pending', 'decision_reason' => null, 'station_id' => null, 'reviewed_at' => null, 'created_at' => '2026-11-14T04:00:00+00:00']];
 $db->tables['stations'] = [$row()];
+$db->results['get_platform_station_registry'] = ['ok'=>true, 'data'=>['rows'=>[$row() + ['registered_count'=>1, 'active_count'=>1]], 'unique_driver_count'=>1]];
+$db->results['list_station_availability'] = ['ok'=>true, 'data'=>['stations'=>[['station_id'=>$row()['id'], 'label'=>'Open', 'accepting_asap'=>true]]]];
 $list = $ui->page('super-admin', 'applications');
 check(str_contains($list->body, 'Malandog Clear Water') && str_contains($list->body, 'REG-BBBBBB') && !str_contains($list->body, 'Bongbongan Fresh Water'), 'applications page lists database registrations');
 $_GET = ['id' => $application];

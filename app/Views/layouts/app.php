@@ -39,7 +39,7 @@ require dirname(__DIR__).'/partials/head.php';
         </nav>
         <div class="mt-3 border-t border-white/20 px-3 pt-3">
             <div class="flex items-center gap-3"><?= U::avatar($info['initials']) ?><div class="min-w-0"><p class="truncate text-sm font-semibold"><?= U::e($info['name']) ?></p><p class="text-xs text-white/75"><?= U::e($info['label']) ?></p></div></div>
-            <div class="mt-3 flex justify-between"><button class="text-xs font-semibold text-white hover:underline" data-dialog-open="role-switch">Switch role</button><a class="flex items-center gap-1.5 text-xs text-white/80 hover:text-white" href="<?= U::e($logoutHref) ?>" data-logout="<?= U::e(strtolower($info['label'])) ?>"><?= U::icon('logout','size-3.5') ?>Log out</a></div>
+            <div class="mt-3 flex justify-between"><?php if ($data['preview']): ?><button class="text-xs font-semibold text-white hover:underline" data-dialog-open="role-switch">Switch role</button><?php endif ?><a class="flex items-center gap-1.5 text-xs text-white/80 hover:text-white" href="<?= U::e($logoutHref) ?>" data-logout="<?= U::e(strtolower($info['label'])) ?>"><?= U::icon('logout','size-3.5') ?>Log out</a></div>
         </div>
     </aside>
 <?php endif ?>
@@ -47,8 +47,23 @@ require dirname(__DIR__).'/partials/head.php';
     <?php if($isRider): ?><header class="mobile-header sticky top-0 z-30 border-b border-line bg-white"><div class="mx-auto flex h-14 max-w-4xl items-center justify-between gap-4 px-4 md:px-8"><a class="flex items-center gap-1.5 font-heading text-xl font-bold tracking-tight" href="/"><?= U::logo('h-9') ?></a><div class="flex items-center gap-2.5"><span class="role-badge"><?= U::icon('truck','size-3.5') ?>Rider</span><a href="<?= U::e($profile['href']) ?>" class="rounded-full" aria-label="<?= U::e($profile['label']) ?>"<?= $profile['active']?' aria-current="page"':'' ?>><?= U::avatar($info['initials'], $profile['active'] ? 'ring-2 ring-water ring-offset-2' : '') ?></a></div></div></header><?php endif ?>
     <?php if (!empty($data['preview'])): ?><div class="preview-bar flex min-h-8 items-center justify-center gap-2 border-b border-line bg-white/75 px-4 text-[11px] text-muted">UI preview <span class="size-1 rounded-full bg-cyan-400"></span> Sample data <a href="/login/<?= U::e($role) ?>" class="ml-2 font-semibold text-water hover:underline">View login</a></div><?php endif ?>
     <main id="main-content" class="app-main mx-auto <?= $isRider?'max-w-4xl px-4 py-5 pb-28 md:px-8':($data['screen']==='messages'?'pb-24 md:pb-0':'max-w-[1600px] px-4 py-5 pb-28 sm:px-6 lg:px-8 lg:py-6') ?>">
-        <?php require dirname(__DIR__).'/'.$role.'/'.$data['screen'].'.php'; ?>
-        <?php if ($data['screen'] !== 'messages'): ?><footer class="mt-8 flex flex-wrap items-center justify-between gap-2 border-t border-line py-4 text-[11px] text-muted"><span>HydroRoute · Hamtic, Antique</span><span><?= !empty($data['preview']) ? 'Sample data for UI preview' : 'Orders and trips show sample data until ordering is connected' ?></span></footer><?php endif ?>
+        <?php $ownerMemberships = $data['setup']['memberships'] ?? $data['station_choices'] ?? []; ?>
+        <?php if (!$data['preview'] && $role === 'station-admin' && count($ownerMemberships) > 1): ?>
+        <form method="post" action="/station-admin/switch-station" class="mb-5 flex flex-wrap items-end gap-3">
+            <input type="hidden" name="_token" value="<?= U::e(App\Core\Session::csrfToken()) ?>">
+            <input type="hidden" name="request_key" value="<?= U::e(App\Services\StationSetup::requestKey()) ?>">
+            <input type="hidden" name="expected_version" value="0">
+            <input type="hidden" name="_form" value="switchStation">
+            <label class="text-sm font-semibold">Station workspace<select name="station_id" class="field mt-1 block" required><?php if (!empty($data['needs_station_selection'])): ?><option value="" selected>Choose a station</option><?php endif ?><?php foreach ($ownerMemberships as $membership): ?><option value="<?= U::e($membership['station_id']) ?>"<?= $membership['station_id'] === ($data['setup']['station']['id'] ?? null) ? ' selected' : '' ?>><?= U::e($membership['station_name']) ?></option><?php endforeach ?></select></label>
+            <button type="submit" class="btn-secondary">Open station</button>
+        </form>
+        <?php endif ?>
+        <?php if (!empty($data['needs_station_selection'])): ?>
+        <section class="panel p-5" role="status"><h1 class="section-title">Choose your station workspace</h1><p class="mt-2 text-sm text-muted">Select a station to open its settings and operations.</p></section>
+        <?php elseif (!$data['preview'] && $role === 'station-admin' && !empty($data['setup_error'])): ?>
+        <section class="panel p-5" role="status"><h1 class="section-title">Station workspace unavailable</h1><p class="mt-2 text-sm text-muted"><?= U::e($data['setup_error']) ?></p><a class="btn-secondary mt-4" href="/login/station-admin">Open login</a></section>
+        <?php else: require dirname(__DIR__).'/'.$role.'/'.$data['screen'].'.php'; endif ?>
+        <?php if ($data['screen'] !== 'messages'): ?><footer class="mt-8 flex flex-wrap items-center justify-between gap-2 border-t border-line py-4 text-[11px] text-muted"><span>HydroRoute · Hamtic, Antique</span><?php if (!empty($data['preview'])): ?><span>Sample data for UI preview</span><?php elseif (empty($data['needs_station_selection']) && empty($data['setup_error']) && (empty($data['setup']) || !in_array($data['screen'], ['settings-profile','settings-service-areas','settings-order-rules','products','schedules'], true))): ?><span>Orders and trips show sample data until ordering is connected</span><?php endif ?></footer><?php endif ?>
     </main>
 </div>
 <?php $tabs = $isRider ? array_values($nav) : array_slice(array_values($nav), 0, 4); $moreActive = !array_filter($tabs, static fn($n) => $n['active']); ?>
@@ -60,11 +75,11 @@ require dirname(__DIR__).'/partials/head.php';
         <?php else: ?><button type="button" data-sidebar-toggle aria-expanded="false" class="flex min-h-16 flex-col items-center justify-center gap-1 text-[11px] font-semibold <?= $moreActive?'text-water':'text-muted' ?>"><span class="flex h-7 w-12 items-center justify-center rounded-full <?= $moreActive?'bg-water text-white':'' ?>"><?= U::icon('menu','size-5') ?></span><span>More</span></button><?php endif ?>
     </div>
 </nav>
-<dialog id="role-switch" aria-labelledby="roles-title">
+<?php if ($data['preview']): ?><dialog id="role-switch" aria-labelledby="roles-title">
     <div class="mb-2 flex justify-between"><h2 id="roles-title" class="section-title">Explore another workspace</h2><button data-dialog-close aria-label="Close role chooser"><?= U::icon('close') ?></button></div>
     <p class="mb-5 text-sm text-muted">Choose a role to view its sample screens.</p>
     <div class="space-y-2"><?php foreach($data['roles'] as $key=>$r): ?><a href="/<?= U::e($key) ?>" class="flex items-center gap-3 rounded-lg border border-line p-4 hover:bg-foam"><?= U::icon($r['icon'],'size-5 text-water') ?><span class="flex-1 font-semibold"><?= U::e($r['label']) ?></span><?= U::icon('arrow-right','size-4') ?></a><?php endforeach ?></div>
-</dialog>
+</dialog><?php endif ?>
 <?php require dirname(__DIR__).'/partials/feedback.php'; ?>
 </body></html>
 

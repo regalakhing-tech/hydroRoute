@@ -59,7 +59,7 @@ final class Response
         header('X-Content-Type-Options: nosniff');
         header('Referrer-Policy: same-origin');
         header('Cache-Control: no-store');
-        header("Content-Security-Policy: default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'");
+        header("Content-Security-Policy: default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' https://tile.openstreetmap.org data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'");
 
         foreach ($this->headers as $name => $value) {
             header($name . ': ' . $value);

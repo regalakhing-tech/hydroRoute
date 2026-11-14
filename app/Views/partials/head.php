@@ -11,6 +11,10 @@
     <link rel="preload" href="/assets/fonts/inter-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="/assets/vendor/sweetalert2.min.css">
     <link rel="stylesheet" href="/assets/css/app.css">
+    <?php if (empty($data['preview']) && ($data['role'] ?? '') === 'station-admin' && in_array($data['screen'] ?? '', ['settings-profile','settings-service-areas','settings-order-rules','products','schedules'], true)): ?>
+    <?php if ($data['screen'] === 'settings-profile'): ?><link rel="stylesheet" href="/assets/vendor/leaflet/leaflet.css"><script src="/assets/vendor/leaflet/leaflet.js" defer></script><?php endif ?>
+    <script src="/assets/js/station-setup.js" defer></script>
+    <?php endif ?>
     <script src="/assets/vendor/sweetalert2.min.js" defer></script>
     <script src="/assets/js/app.js" defer></script>
     <script src="/assets/js/messages.js" defer></script>

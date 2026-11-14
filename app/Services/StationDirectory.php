@@ -8,7 +8,7 @@ use DateTimeImmutable;
 use DateTimeZone;
 use RuntimeException;
 
-/** Approved stations for the landing page and customers, with open/closed status worked out from their hours. */
+/** Public approved station metadata paired with database-derived availability. */
 final class StationDirectory
 {
     private ?array $cache = null;
@@ -19,17 +19,49 @@ final class StationDirectory
 
     public function approved(?DateTimeImmutable $now = null): array
     {
-        if ($this->cache === null) {
-            try {
-                $this->cache = $this->db->select('stations', ['select' => Registry::STATION_COLUMNS, 'order' => 'name.asc']);
-            } catch (RuntimeException $exception) {
-                error_log('Station directory unavailable: ' . $exception->getMessage());
-                return [];
+        if ($this->cache !== null) return $this->cache;
+        try {
+            $rows = $this->db->select('stations', ['select' => Registry::STATION_COLUMNS, 'order' => 'name.asc']);
+            if ($rows === []) return $this->cache = [];
+            $result = $this->db->rpc('list_station_availability', [
+                'p_station_ids' => array_column($rows, 'id'),
+                'p_requested_at' => $now?->format(DATE_ATOM),
+            ], null);
+            if (($result['ok'] ?? false) !== true || !is_array($result['data']['stations'] ?? null)) {
+                throw new RuntimeException('Availability projection unavailable.');
             }
+            $availability = array_column($result['data']['stations'], null, 'station_id');
+            $stations = [];
+            foreach ($rows as $row) {
+                if (!isset($availability[$row['id']])) continue;
+                $state = $availability[$row['id']];
+                $accepting = ($state['accepting_asap'] ?? false) === true;
+                $next = empty($state['next_open_at']) ? 'No opening time is currently available.'
+                    : 'Next opening '.(new DateTimeImmutable($state['next_open_at']))->setTimezone(new DateTimeZone('Asia/Manila'))->format('M j, Y \a\t g:i A').'.';
+                $hours = [];
+                foreach ($state['preview'] ?? [] as $day) {
+                    $windows = [];
+                    foreach ($day['windows'] ?? [] as $window) {
+                        $windows[] = substr($window['opens_at'], 0, 5).'–'.substr($window['closes_at'], 0, 5);
+                    }
+                    $hours[] = $windows === [] ? 'Closed' : implode(', ', $windows);
+                }
+                $stations[] = [
+                    'id'=>(string)($row['slug'] ?? $row['id']), 'uuid'=>(string)$row['id'],
+                    'name'=>(string)$row['name'], 'area'=>(string)($row['barangay'] ?: 'Hamtic'),
+                    'address'=>(string)($row['address'] ?? ''), 'phone'=>(string)($row['phone'] ?? ''),
+                    'status'=>(string)($state['label'] ?? 'Availability unavailable'),
+                    'tone'=>$accepting ? 'green' : (($state['status_key'] ?? '') === 'closed' ? 'gray' : 'amber'),
+                    'available'=>$accepting, 'can_book'=>($state['can_book'] ?? false) === true,
+                    'hours'=>$hours[0] ?? 'Hours unavailable', 'sunday'=>'See station schedule',
+                    'next'=>$accepting ? 'Accepting orders now.' : $next,
+                ];
+            }
+            return $this->cache = $stations;
+        } catch (RuntimeException $exception) {
+            error_log('Station directory unavailable: '.$exception::class);
+            return [];
         }
-        $now ??= new DateTimeImmutable('now', new DateTimeZone('Asia/Manila'));
-
-        return array_map(static fn (array $row): array => self::present($row, $now), $this->cache);
     }
 
     /** Shapes one stations row like the page templates expect; $now must be in Asia/Manila. */

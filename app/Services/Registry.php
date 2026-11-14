@@ -47,6 +47,23 @@ final class Registry
         return $this->db->select('stations', ['select' => self::STATION_COLUMNS, 'order' => 'name.asc'], $token);
     }
 
+    public function platformRegistry(string $token): array
+    {
+        $result = $this->db->rpc('get_platform_station_registry', ['p_filters' => (object) []], $token);
+        if (($result['ok'] ?? false) !== true || !is_array($result['data']['rows'] ?? null)) {
+            throw new \RuntimeException('Registry projection unavailable.');
+        }
+        return $result['data'];
+    }
+
+    public function canManageDriverCredentials(string $token, string $stationId, string $driverId): bool
+    {
+        $result = $this->db->rpc('authorize_driver_credentials', [
+            'p_station_id' => $stationId, 'p_driver_user_id' => $driverId,
+        ], $token);
+        return ($result['ok'] ?? false) === true && ($result['data']['allowed'] ?? false) === true;
+    }
+
     public function drivers(string $token, ?string $stationId = null): array
     {
         $query = ['select' => 'user_id,station_id,full_name,phone,email,vehicle,plate_number,capacity,active,created_at', 'order' => 'created_at.desc'];

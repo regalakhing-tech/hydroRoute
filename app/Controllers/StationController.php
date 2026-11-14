@@ -9,6 +9,7 @@ use App\Core\Session;
 use App\Services\AuthProvider;
 use App\Services\CurrentUser;
 use App\Services\Registry;
+use App\Services\StationSetup;
 use App\Services\SignupVerification as Check;
 use App\Services\SupabaseException;
 use RuntimeException;
@@ -21,6 +22,7 @@ final class StationController extends Controller
         private readonly AuthProvider $auth,
         private readonly Registry $registry,
         private readonly CurrentUser $current,
+        private readonly StationSetup $setup,
     ) {
     }
 
@@ -43,10 +45,16 @@ final class StationController extends Controller
         if ($token === null) {
             return $this->back('/login/station-admin', 'info', 'Your session ended. Please log in again.');
         }
+        if (!StationSetup::isUuid($user['station']['id'] ?? null)) {
+            return $this->back('/station-admin', 'info', 'Choose your station workspace to continue.');
+        }
         $id = self::input('user_id', 64);
         try {
             // Row-level security returns only this station's drivers, so another station's driver is never found.
             $driver = current(array_filter($this->registry->drivers($token, $user['station']['id']), static fn (array $row): bool => $row['user_id'] === $id));
+            if ($driver && !$this->registry->canManageDriverCredentials($token, $user['station']['id'], $id)) {
+                return $this->back('/station-admin/drivers', 'error', 'This account requires administrator-managed password recovery.');
+            }
         } catch (RuntimeException) {
             return $this->back('/station-admin/drivers', 'error', 'We could not reach the driver list. Please try again.');
         }
@@ -103,6 +111,17 @@ final class StationController extends Controller
         };
         if ($error !== null) {
             return $this->back('/station-admin/drivers/add', 'error', $error);
+        }
+
+        $token = $this->current->token();
+        if ($token === null) {
+            return $this->back('/login/station-admin', 'info', 'Your session ended. Please log in again.');
+        }
+        try {
+            $this->setup->load($token, (string) ($user['station']['id'] ?? ''));
+        } catch (Throwable $exception) {
+            error_log('Driver registration authorization failed: '.$exception::class);
+            return $this->back('/station-admin/drivers/add', 'error', 'Your station access could not be verified. Refresh the page or log in again.');
         }
 
         try {

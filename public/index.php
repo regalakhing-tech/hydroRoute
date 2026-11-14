@@ -24,6 +24,7 @@ try {
         '/assets/js/app.js' => ['file' => __DIR__ . '/assets/js/app.js', 'type' => 'text/javascript; charset=utf-8'],
         '/assets/js/messages.js' => ['file' => __DIR__ . '/assets/js/messages.js', 'type' => 'text/javascript; charset=utf-8'],
         '/assets/js/fulfillment.js' => ['file' => __DIR__ . '/assets/js/fulfillment.js', 'type' => 'text/javascript; charset=utf-8'],
+        '/assets/js/live.js' => ['file' => __DIR__ . '/assets/js/live.js', 'type' => 'text/javascript; charset=utf-8'],
         '/assets/images/hero-water.webp' => ['file' => __DIR__ . '/assets/images/hero-water.webp', 'type' => 'image/webp'],
         '/assets/images/water-jug.webp' => ['file' => __DIR__ . '/assets/images/water-jug.webp', 'type' => 'image/webp'],
         '/assets/images/water-bottle.webp' => ['file' => __DIR__ . '/assets/images/water-bottle.webp', 'type' => 'image/webp'],

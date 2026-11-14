@@ -58,4 +58,5 @@ return static function (Router $router, array $config): void {
         $router->get($path, static fn () => $ui->page($page['role'], $page['screen']));
     }
     $router->get('/api/health', [$system, 'health']);
+    (require __DIR__ . '/operations.php')($router, $supabase, $current);
 };

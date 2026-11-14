@@ -175,7 +175,7 @@
             const csvCell=text=>{ let value=text.trim().replace(/\s+/g,' '); if(/^[=+@-]/.test(value))value="'"+value; return '"'+value.replace(/"/g,'""')+'"'; };
             const csv=$$('tr',table).filter(row=>!row.hidden&&row.dataset.filtered!=='true').map(row=>$$('th,td',row).map(cell=>csvCell(cell.innerText)).join(',')).join('\r\n');
             const url=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
-            const link=document.createElement('a'); link.href=url; link.download='hamtic-'+button.dataset.export+'.csv'; link.click(); setTimeout(()=>URL.revokeObjectURL(url),1000); toast('Sample table exported as CSV.');
+            const link=document.createElement('a'); link.href=url; link.download='hamtic-'+button.dataset.export+'.csv'; link.click(); setTimeout(()=>URL.revokeObjectURL(url),1000); toast($('.preview-bar') ? 'Sample table exported as CSV.' : 'Table exported as CSV.');
         }
     });
     $$('[id]').forEach(element=>{

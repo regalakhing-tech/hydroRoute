@@ -56,6 +56,16 @@ final class Registry
         return $result['data'];
     }
 
+    /** Super Admin registry read: station availability, driver rows, registry activity and the admin's profile. */
+    public function workspace(string $token): array
+    {
+        $result = $this->db->rpc('get_registry_workspace', [], $token);
+        if (($result['ok'] ?? false) !== true || !is_array($result['data'] ?? null)) {
+            throw new \RuntimeException('Registry workspace unavailable.');
+        }
+        return $result['data'];
+    }
+
     public function canManageDriverCredentials(string $token, string $stationId, string $driverId): bool
     {
         $result = $this->db->rpc('authorize_driver_credentials', [

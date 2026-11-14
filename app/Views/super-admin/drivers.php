@@ -1,12 +1,4 @@
-<?php use App\UI\UI as U; $s=$data['sample'];
-if (!$data['preview']):
-    $counts = $s['driver_counts'] ?? [];
-?>
-<?= U::heading('Driver registrations','Registered and active driver counts by station.') ?>
-<div class="mb-5"><?= U::stat('Registered drivers',(string)($s['counts']['Registered drivers'] ?? 0),'users','blue','Across all stations','Drivers') ?></div>
-<section class="panel p-4 md:p-5"><div class="overflow-x-auto"><table class="data-table"><thead><tr><th>Station</th><th>Registered drivers</th><th>Active drivers</th></tr></thead><tbody><?php foreach ($counts as $count): ?><tr><td><?= U::e($count['station']) ?></td><td><?= (int)$count['registered'] ?></td><td><?= (int)$count['active'] ?></td></tr><?php endforeach ?></tbody></table><?php if ($counts === []): ?><p class="p-5 text-center text-muted">No driver registration counts are available.</p><?php endif ?></div></section>
-<?php return; endif;
-$active = count(array_filter($s['drivers'], fn($d) => $d['status'] === 'Active')); ?>
+<?php use App\UI\UI as U; $s=$data['sample']; $active = count(array_filter($s['drivers'], fn($d) => $d['status'] === 'Active')); ?>
 <?= U::heading('Driver registrations','Driver identity and station assignment metadata.',U::btn('Export registrations','','secondary','download',['data-export'=>'driver-registry'])) ?>
 <div class="mb-5 grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-3 max-lg:[&>:last-child:nth-child(odd)]:col-span-2"><?= U::stat('Registered drivers',(string)count($s['drivers']),'users','blue','Across all stations','Drivers') ?><?= U::stat('Active',(string)$active,'check','green','Can be assigned trips','Active') ?><?= U::stat('Inactive',(string)(count($s['drivers'])-$active),'close','red','Not taking deliveries','Inactive') ?></div>
 <section class="panel p-4 md:p-5"><div class="mb-4 grid gap-3 md:grid-cols-[1fr_240px]"><?= U::field('Search drivers','driver-search','','search',['icon'=>'search','data-search'=>'driver-registry','placeholder'=>'Driver name or assigned station']) ?><?= U::select('Account status','driver-status',['all'=>'All drivers','Active'=>'Active','Inactive'=>'Inactive'],'all',['data-filter-target'=>'driver-registry']) ?></div>

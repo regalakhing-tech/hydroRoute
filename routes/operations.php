@@ -25,6 +25,9 @@ return static function (Router $router, Gateway $db, CurrentUser $current): void
         $router->post('/customer/' . $path, [$customer, $action]);
     }
 
+    // Super Admin: own profile only; registry pages are read through get_registry_workspace.
+    $router->post('/super-admin/account', [new App\Controllers\RegistryProfileController($db, $current), 'save']);
+
     $orders = new OrderController($db, $current);
     $router->post('/customer/orders', [$orders, 'submit']);
     $router->post('/customer/checkout/review', [$orders, 'review']);
@@ -55,6 +58,7 @@ return static function (Router $router, Gateway $db, CurrentUser $current): void
     $router->post('/rider/trips/result', [$rider, 'deliver']);
     $router->post('/rider/trips/close', [$rider, 'closeTrip']);
     $router->post('/rider/trips/location', [$rider, 'location']);
+    $router->get('/rider/trips/current', [$rider, 'current']);
 
     $messages = new MessageController($db, $current);
     $router->post('/customer/messages/start', [$messages, 'start']);

@@ -137,6 +137,18 @@ final class UIController
             Session::flash('error', 'The registry could not be loaded. Please refresh the page.');
             [$stations, $registrations, $projection] = [[], [], ['unique_driver_count'=>0]];
         }
+        try {
+            $workspace = $this->registry->workspace($token);
+        } catch (RuntimeException $exception) {
+            error_log('Registry workspace unavailable: '.$exception::class);
+            $workspace = [];
+        }
+        // Public availability label per station, shortened to the badge words the registry pages use.
+        $availability = [];
+        foreach ($workspace['stations'] ?? [] as $row) $availability[$row['id']] = match ($row['availability'] ?? null) {
+            null => 'Not yet active', 'Open now' => 'Open', 'Under Maintenance' => 'Maintenance', default => (string) $row['availability'],
+        };
+        $me = $workspace['me'] ?? ['display_name' => '', 'phone' => null, 'version' => 1];
         $applications = array_map(static fn (array $r): array => [
             'id'=>$r['id'], 'ref'=>'REG-'.strtoupper(substr($r['id'], 0, 6)), 'name'=>$r['station_name'], 'area'=>$r['barangay'],
             'applicant'=>$r['owner_name'], 'date'=>self::date($r['created_at']), 'status'=>ucfirst($r['status']),
@@ -147,12 +159,13 @@ final class UIController
             $events[] = [$r['created_at'], 'Application submitted', $r['station_name'], $r['owner_name'], 'Application'];
             if ($r['reviewed_at']) $events[] = [$r['reviewed_at'], 'Application '.$r['status'], $r['station_name'], 'Registry administrator', 'Application'];
         }
+        foreach ($workspace['activity'] ?? [] as $a) $events[] = [$a['at'], $a['event'], $a['station'], 'Station administrator', $a['type']];
         usort($events, static fn (array $a, array $b): int => strcmp($b[0], $a[0]));
         return [
             'counts'=>['Registered stations'=>count($stations), 'Pending applications'=>count(array_filter($registrations, static fn (array $r): bool => $r['status'] === 'pending')), 'Registered drivers'=>(int)$projection['unique_driver_count']],
-            'stations'=>array_map(static function (array $s): array {
+            'stations'=>array_map(static function (array $s) use ($availability): array {
                 return ['id'=>$s['id'], 'name'=>$s['name'], 'area'=>$s['barangay'] ?: 'Hamtic', 'registration'=>ucfirst($s['registration_status']),
-                    'availability'=>$s['availability_label'] ?? ($s['active'] ? 'Active' : 'Inactive'),
+                    'availability'=>$availability[$s['id']] ?? ($s['availability_label'] ?? ($s['active'] ? 'Active' : 'Inactive')),
                     'drivers'=>(int)$s['registered_count'], 'date'=>self::date($s['created_at'] ?? null), 'contact'=>self::phone($s['phone'])];
             }, $stations),
             'applications'=>$applications,
@@ -162,10 +175,11 @@ final class UIController
                 'applicant'=>$selected['owner_name'], 'applicant_role'=>$selected['owner_role'], 'applicant_phone'=>self::phone($selected['owner_phone']), 'applicant_email'=>$selected['owner_email'],
                 'date'=>self::date($selected['created_at']), 'status'=>ucfirst($selected['status']), 'reason'=>$selected['decision_reason'], 'station_id'=>$selected['station_id'],
             ] : null,
-            'drivers'=>[],
+            'drivers'=>array_map(static fn (array $d): array => ['name'=>$d['name'], 'station'=>$d['station'], 'phone'=>self::phone($d['phone']), 'vehicle'=>$d['vehicle'],
+                'status'=>$d['active'] ? 'Active' : 'Inactive', 'date'=>self::date($d['created_at'])], $workspace['drivers'] ?? []),
             'driver_counts'=>array_map(static fn (array $s): array => ['station'=>$s['name'], 'registered'=>(int)$s['registered_count'], 'active'=>(int)$s['active_count']], $stations),
             'activity'=>array_map(static fn (array $e): array => ['time'=>self::date($e[0], true), 'event'=>$e[1], 'station'=>$e[2], 'actor'=>$e[3], 'type'=>$e[4]], array_slice($events, 0, 50)),
-            'account'=>['name'=>$user['name'], 'email'=>$user['email'], 'phone'=>''],
+            'account'=>['name'=>$me['display_name'] !== '' ? $me['display_name'] : $user['name'], 'email'=>$user['email'], 'phone'=>self::phone($me['phone']), 'version'=>(int) $me['version']],
         ];
     }
     private function stationDrivers(string $token, string $stationId): array

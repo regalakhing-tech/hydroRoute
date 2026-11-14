@@ -267,6 +267,22 @@ $detail = $ui->page('super-admin', 'application');
 check(str_contains($detail->body, 'action="/super-admin/application/decision"') && str_contains($detail->body, 'roberto@example.com') && str_contains($detail->body, '0917 111 2233'), 'application page has the real decision form');
 $overview = $ui->page('super-admin', 'overview');
 check(str_contains($overview->body, 'Guintas Water Station') && str_contains($overview->body, 'Malandog Clear Water'), 'overview shows stations and the pending application');
+$db->results['get_registry_workspace'] = ['ok' => true, 'data' => ['stations' => [['id' => $row()['id'], 'availability' => 'Open now']],
+    'drivers' => [['name' => 'Rider <One>', 'station' => 'Guintas Water Station', 'phone' => '+639171234567', 'vehicle' => 'Tricycle', 'active' => true, 'created_at' => '2026-11-14T02:00:00+00:00']],
+    'activity' => [['at' => '2026-11-14T02:00:00+00:00', 'event' => 'Driver registration added', 'station' => 'Guintas Water Station', 'type' => 'Driver']],
+    'me' => ['display_name' => 'Andrea Live', 'phone' => '+639170000120', 'version' => 3]]];
+$page = $ui->page('super-admin', 'drivers')->body;
+check(str_contains($page, 'Rider &lt;One&gt;') && str_contains($page, '0917 123 4567') && str_contains($page, 'Tricycle') && !str_contains($page, 'Juan Reyes') && !str_contains($page, 'Marco Flores'), 'super admin drivers page lists live drivers in the original table');
+check(str_contains($ui->page('super-admin', 'overview')->body, '>Open<'), 'station availability uses the public label');
+$page = $ui->page('super-admin', 'activity')->body;
+check(str_contains($page, 'Driver registration added') && str_contains($page, 'Application submitted') && !str_contains($page, 'Maria Villanueva'), 'activity merges registrations with driver and profile events');
+$page = $ui->page('super-admin', 'account')->body;
+check(str_contains($page, 'action="/super-admin/account"') && str_contains($page, 'value="Andrea Live"') && str_contains($page, 'value="0917 000 0120"') && str_contains($page, 'name="expected_version" value="3"') && !str_contains($page, 'data-local-form'), 'account page saves to the database');
+$db->results['save_registry_profile'] = ['ok' => true, 'data' => ['version' => 4]];
+$_POST = ['_token' => Session::csrfToken(), 'request_key' => '10000000-0000-4000-8000-000000000001', 'expected_version' => '3', 'name' => 'Andrea Torres', 'phone' => '0917 000 0120'];
+$saved = (new App\Controllers\RegistryProfileController($db, $current))->save();
+$call = $db->calls[array_key_last($db->calls)];
+check($saved->headers['Location'] === '/super-admin/account' && $call[1] === 'save_registry_profile' && $call[2]['p_payload'] === ['display_name' => 'Andrea Torres', 'phone' => '+639170000120'] && Session::user()['name'] === 'Andrea Torres', 'super admin profile saves name and phone');
 $home = $ui->home();
 check(str_contains($home->body, 'Guintas Water Station') && !str_contains($home->body, 'Poblacion Water Station') && !str_contains($home->body, 'Sample stations for the UI preview'), 'landing page lists database stations only');
 

@@ -191,17 +191,27 @@ final class SupabaseClient implements AuthProvider, Gateway
         }
 
         try {
-            curl_setopt_array($handle, [
+            $options = [
                 CURLOPT_CUSTOMREQUEST => $method,
                 CURLOPT_HTTPHEADER => $headers,
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_CONNECTTIMEOUT => 5,
                 CURLOPT_TIMEOUT => $this->config['timeout_seconds'],
                 CURLOPT_FOLLOWLOCATION => false,
-                CURLOPT_PROTOCOLS_STR => 'https',
-                // Windows PHP ships without a CA bundle; also trust the OS store. Verification stays on.
-                CURLOPT_SSL_OPTIONS => CURLSSLOPT_NATIVE_CA,
-            ]);
+                CURLOPT_SSL_VERIFYPEER => true,
+                CURLOPT_SSL_VERIFYHOST => 2,
+            ];
+            // The Vercel runtime can use an older libcurl than local PHP.
+            if (defined('CURLOPT_PROTOCOLS_STR')) {
+                $options[CURLOPT_PROTOCOLS_STR] = 'https';
+            } else {
+                $options[CURLOPT_PROTOCOLS] = CURLPROTO_HTTPS;
+            }
+            // Windows PHP can trust the OS store when no CA bundle is installed.
+            if (PHP_OS_FAMILY === 'Windows' && defined('CURLSSLOPT_NATIVE_CA')) {
+                $options[CURLOPT_SSL_OPTIONS] = CURLSSLOPT_NATIVE_CA;
+            }
+            curl_setopt_array($handle, $options);
             if ($body !== null) {
                 curl_setopt($handle, CURLOPT_POSTFIELDS, json_encode((object) $body, JSON_THROW_ON_ERROR));
             }

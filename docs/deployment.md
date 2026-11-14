@@ -1,0 +1,42 @@
+# PHP deployment on Vercel
+
+## Runtime
+
+This starter pins `vercel-php@0.9.0`, a community-maintained PHP 8.5 runtime. It is not an official Vercel PHP runtime. Verify a preview deployment before production use. See the [runtime project](https://github.com/vercel-community/php) and [Vercel runtime documentation](https://vercel.com/docs/functions/runtimes).
+
+The repository root is the deployment root. `vercel.json` directs requests to `api/index.php`, which loads the PHP application. The application serves only its two registered public assets and its explicit routes. No general filesystem route exposes configuration or thesis files.
+
+## Setup
+
+1. Place this project in a Git repository you control and import it into Vercel, or use the Vercel CLI from the project directory.
+2. Choose Other as the framework and keep the project root at this directory. Do not select `public/` as the Vercel root, and do not add a separate static output directory.
+3. Use Node.js 22.x for the community runtime builder, following its current documentation. The application itself remains PHP.
+4. Set the following environment variables in the intended Preview or Production environment:
+
+| Variable | Value |
+| --- | --- |
+| `APP_NAME` | The station's public name |
+| `APP_ENV` | `production` |
+| `APP_URL` | The deployed HTTPS origin |
+| `APP_TIMEZONE` | `Asia/Manila` |
+| `SUPABASE_URL` | The station's Supabase HTTPS project origin |
+| `SUPABASE_PUBLISHABLE_KEY` | That project's `sb_publishable_...` key |
+| `SUPABASE_SECRET_KEY` | Server-only `sb_secret_...` key; creates customer accounts after the email code is verified |
+| `APP_PREVIEW` | `false`. `true` shows sample data without logins, for demos and automated page tests only |
+| `MAIL_HOST`, `MAIL_PORT`, `MAIL_ENCRYPTION` | SMTP server for PHPMailer, for example `smtp.gmail.com`, `587`, `tls` |
+| `MAIL_USERNAME`, `MAIL_PASSWORD` | SMTP login; for Gmail, a Google App Password |
+| `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME` | Sender shown on verification emails |
+
+5. Deploy a preview and check the title page, `/api/health`, CSS, and JavaScript. A health result with `supabase_configured: true` indicates supplied configuration, not verified connectivity.
+6. Verify that `/.env`, `/config/thesis.php`, `/bootstrap.php`, and `/README.md` return 404.
+7. Test a real authorized database operation only after the corresponding migration, grants, RLS, and user authentication are implemented.
+
+The `.vercelignore` file excludes environment files, thesis sources, documentation, tests, local scratch files, and migrations from deployment uploads. The runtime's Composer support can install future dependencies during its build. Do not put credentials in Git or PHP templates.
+
+## Sessions and scheduled work
+
+Customer login uses native PHP file sessions, which work locally but are not shared between Vercel instances. Before deploying login, use a durable session design compatible with separate serverless instances; do not use local PHP session files for production. Protect access and refresh tokens and use secure HttpOnly cookies for the browser-facing session.
+
+For the future one-minute order release and five-minute queue refresh, use Supabase Cron for database functions. Do not depend on a continuously running PHP process or a station browser. Email work can run in a separately configured hosted worker or Edge Function. See [Supabase Cron](https://supabase.com/docs/guides/cron).
+
+No cron jobs, database tables, remote projects, or deployed sites are created by this starter. Authentication and the order workflow must be implemented before station use.

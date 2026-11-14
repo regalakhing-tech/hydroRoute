@@ -1,0 +1,15 @@
+.env
+.env.*
+.git
+.agents
+.codex
+.vercel
+.superpowers
+node_modules
+vendor
+storage
+tests
+docs
+supabase
+*.docx
+*.md

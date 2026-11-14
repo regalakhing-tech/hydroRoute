@@ -1,0 +1,16 @@
+{
+  "name": "hamtic-water-ui",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "build:css": "tailwindcss -i ./resources/css/app.css -o ./public/assets/css/app.css --minify",
+    "dev:css": "tailwindcss -i ./resources/css/app.css -o ./public/assets/css/app.css --watch"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.14",
+    "@tailwindcss/cli": "4.3.3",
+    "jsdom": "26.1.0",
+    "supabase": "3.0.0",
+    "tailwindcss": "4.3.3"
+  }
+}

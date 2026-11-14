@@ -1,0 +1,13 @@
+<?php use App\UI\UI as U; $s=$data['sample']; ?>
+<div class="mx-auto max-w-3xl space-y-4"><a href="/rider" class="inline-flex items-center gap-1.5 text-sm font-semibold text-water hover:underline"><?= U::icon('arrow-left','size-4') ?>Back to my trip</a><?= U::heading('Report a problem') ?>
+<section class="flex items-center gap-3 rounded-xl bg-foam p-3.5"><span class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-water text-white"><?= U::icon('user','size-5') ?></span><div class="min-w-0"><p class="text-xs font-semibold text-water"><?= U::e($s['trip']) ?>, current delivery</p><h2 class="truncate font-bold"><?= U::e($s['stop']['name']) ?></h2><p class="truncate text-sm text-muted"><?= U::e($s['stop']['address']) ?></p></div></section>
+<form class="panel space-y-4 p-4 md:p-6" data-local-form data-persist="rider-problem" data-success="Problem draft saved in this browser. Contact your station to send it.">
+    <fieldset><legend class="label">What happened?</legend><div class="grid grid-cols-2 gap-2">
+    <?php foreach ([['unavailable','Customer unavailable','user'],['address','Cannot find address','pin'],['containers','Container mismatch','bottle'],['vehicle','Vehicle problem','truck'],['other','Other','help']] as $i => [$value,$label,$icon]): ?><label class="flex cursor-pointer items-center gap-2.5 rounded-xl border border-line bg-white p-3 text-sm font-medium has-checked:border-water has-checked:bg-foam has-checked:text-water has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-water <?= $value==='other'?'col-span-2':'' ?>"><input class="sr-only" type="radio" name="reason" value="<?= U::e($value) ?>" <?= $i===0?'required':'' ?>><?= U::icon($icon,'size-5 shrink-0 text-water') ?><?= U::e($label) ?></label><?php endforeach ?>
+    </div></fieldset>
+    <?= U::textarea('Additional details','details','',['required'=>true,'rows'=>'4','placeholder'=>'Describe the problem and any contact attempts.']) ?>
+    <label class="flex items-start gap-3 text-sm"><input class="mt-0.5 size-5 accent-cyan-600" type="checkbox" name="contact_attempted" value="yes"><span>I tried contacting the customer.</span></label>
+    <p class="flex items-start gap-2 rounded-lg bg-mist p-3 text-xs text-muted"><?= U::icon('shield','size-4 shrink-0') ?>This preview saves a draft on this device. No report is sent; call your station for help.</p>
+    <?= U::btn('Save problem draft','','primary','file',['type'=>'submit','class'=>'rider-action w-full']) ?>
+</form>
+<?= U::btn('Call station','','secondary','phone',['class'=>'rider-action w-full','data-demo-action'=>true,'data-toast'=>'Sample station contact. Calling is unavailable in this preview.']) ?></div>

@@ -1,0 +1,11 @@
+{
+  "generator": "built-in image generation",
+  "water-bottle.png": {
+    "source": "C:/Users/janna/.codex/generated_images/01a1976a-56f4-79e1-971c-b4966e0aa532/exec-73c8e565-3ee1-4c1f-9829-cf8ff86873f9.png",
+    "destination": "public/assets/images/water-bottle.png"
+  },
+  "faucet-container.png": {
+    "source": "C:/Users/janna/.codex/generated_images/01a1976a-56f4-79e1-971c-b4966e0aa532/exec-3870584b-4dd8-4ffa-969f-20e9ff032675.png",
+    "destination": "public/assets/images/faucet-container.png"
+  }
+}

@@ -31,8 +31,11 @@ $addressOptions = [];
 foreach ($live['addresses'] as $a) $addressOptions[$a['id']] = $a['label'] . ' — ' . $a['address'] . ($a['latitude'] === null ? ' (no map pin)' : '');
 if ($addressOptions === []) $addressOptions = ['' => 'No saved address yet'];
 $fee = $mode === 'pickup' ? 0 : (isset($q['fee_centavos']) ? $q['fee_centavos'] / 100 : ($live['fees'][$form['address_id']] ?? 0));
-$subtotal = $q ? $q['subtotal_centavos'] / 100 : 0;
-$returns = $q['expected_empties'] ?? 0;
+// When the quote is refused (shown below), the summary still lists the basket at catalogue prices.
+$lines = $q['items'] ?? array_map(static fn (string $id, int $n): array => $live['products'][$id] + ['quantity' => $n, 'unit_price_centavos' => $live['products'][$id]['price_centavos'],
+    'line_total_centavos' => $n * $live['products'][$id]['price_centavos']], array_keys($live['items']), $live['items']);
+$subtotal = array_sum(array_column($lines, 'line_total_centavos')) / 100;
+$returns = $q['expected_empties'] ?? array_sum(array_map(static fn (array $l): int => empty($l['returnable']) ? 0 : $l['quantity'], $lines));
 $err = static fn (string $f): string => isset($errors[$f]) ? '<p class="mt-2 text-sm font-semibold text-rose-700" role="alert">' . U::e($errors[$f]) . '</p>' : '';
 ?>
 <?= U::heading('Place your order', 'Order your water refills from ' . $station['name'] . '.') ?>
@@ -53,7 +56,7 @@ $err = static fn (string $f): string => isset($errors[$f]) ? '<p class="mt-2 tex
 <fieldset><legend class="section-title mb-3">5. Payment method</legend><label class="flex items-center gap-3 rounded-lg border border-line bg-foam p-4"><input type="radio" name="payment" value="cash" checked required class="accent-cyan-600"><span><strong><span data-payment-title>Cash on delivery</span></strong><span class="block muted"><span data-payment-copy>Pay when your order is delivered.</span></span></span></label><?= $err('phone') ?></fieldset>
 </section></div>
 <aside class="panel p-5 md:p-6 self-start"><?= U::title('Order summary', 'chart', '') ?><p class="muted">Please review your order details.</p><div class="my-5 flex gap-3 items-center"><?= U::productImage('h-20 w-20 rounded-lg bg-foam') ?><strong><?= U::e($station['name']) ?></strong></div>
-<div class="space-y-4 border-y border-line py-5"><?php foreach ($q['items'] ?? [] as $item): ?>
+<div class="space-y-4 border-y border-line py-5"><?php foreach ($lines as $item): ?>
 <div class="flex gap-3 items-center"><img src="<?= U::e(S::image($item['image_key'] ?? null)) ?>" alt="" class="h-16 w-16 rounded-lg bg-foam object-contain" width="64" height="64" loading="lazy"><div class="flex-1"><h3 class="font-semibold"><?= U::e($item['name']) ?></h3><p class="muted"><?= (int) $item['quantity'] ?> &times; <?= S::pesos($item['unit_price_centavos']) ?></p></div><strong><?= S::pesos($item['line_total_centavos']) ?></strong></div>
 <?php endforeach; ?><div class="flex justify-between gap-3"><span class="muted">Delivery fee</span><strong data-delivery-fee data-quote="fee"><?= $fee ? U::money($fee) : ($mode === 'pickup' ? 'Free (pickup)' : '—') ?></strong></div><p class="text-xs text-muted">One fee per delivery, from the station's distance table<?= isset($q['delivery']['distance_display']) ? ' (about ' . U::e($q['delivery']['distance_display']) . ' km)' : '' ?>.</p></div>
 <div class="flex justify-between rounded-lg bg-foam p-4 mt-4 font-bold text-lg"><span>Total amount</span><span data-checkout-total data-quote="total" data-subtotal="<?= $subtotal ?>"><?= U::money($subtotal + $fee) ?></span></div>

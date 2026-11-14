@@ -122,12 +122,15 @@ $_GET = ['station' => S, 'qty' => [P => '2']];
 $page = $ui->page('customer', 'checkout')->body;
 check(str_contains($page, 'action="/customer/orders"') && str_contains($page, 'name="' . P . '"') && str_contains($page, 'value="' . Session::csrfToken() . '"'), 'Checkout posts a real form with CSRF');
 check(str_contains($page, 'PHP 50.00') && str_contains($page, '1.1 km') && str_contains($page, 'Live Station') && !str_contains($page, 'Guintas Water Station') && !str_contains($page, 'Maria Santos'), 'Checkout shows the database quote, not samples');
+$db->results['quote_order'] = ['ok' => false, 'error_code' => 'load_units_missing', 'field_errors' => ['items' => 'Some products are pickup only.'], 'data' => []];
+$page = $ui->page('customer', 'checkout')->body;
+check(str_contains($page, 'Some products are pickup only.') && str_contains($page, 'data-subtotal="40"') && str_contains($page, '2 &times; PHP 20.00'), 'A refused quote still lists the basket at catalogue prices');
 $_GET = ['station' => '99999999-9999-4999-8999-999999999999'];
 $db->tables['stations'][0]['id'] = S;
 check(str_contains($ui->page('customer', 'checkout')->body, 'Station not found'), 'Unknown station');
 
 $db->results['get_customer_order'] = ['ok' => true, 'data' => [
-    'order' => ['id' => O, 'order_no' => 'HMT-0007', 'status' => 'confirmed', 'fulfillment' => 'delivery', 'version' => 2, 'created_at' => '2026-11-15T01:00:00+00:00', 'requested_at' => '2026-11-15T01:00:00+00:00',
+    'order' => ['id' => O, 'order_no' => 'HMT-0007', 'status' => 'confirmed', 'fulfillment' => 'delivery', 'version' => 2, 'schedule_mode' => 'asap', 'created_at' => '2026-11-15T01:00:00+00:00', 'requested_at' => '2026-11-15T01:00:00+00:00',
         'subtotal_centavos' => 4000, 'quoted_fee_centavos' => 1000, 'final_fee_centavos' => null, 'total_centavos' => 5000, 'distance_display' => 1.1, 'address_label' => 'Home', 'address_text' => 'Purok 1', 'address_landmark' => '', 'note' => '', 'cancel_reason' => null],
     'station' => ['id' => S, 'name' => 'Live Station', 'address' => 'Purok 3', 'barangay' => 'Guintas', 'phone' => '+639170000001'],
     'items' => [['name' => 'Round refill <b>', 'pack_text' => '18.9 L', 'quantity' => 2, 'unit_price_centavos' => 2000, 'line_total_centavos' => 4000]],

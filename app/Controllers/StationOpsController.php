@@ -32,7 +32,7 @@ final class StationOpsController extends LiveController
 
     public function collectPickup(): Response
     {
-        return $this->step('record_pickup_collection', 'Pickup recorded. Verify the cash to complete the order.',
+        return $this->step('record_pickup_collection', 'Pickup recorded and the cash is verified. Complete the order when you are done.',
             static fn (): array => ['p_payload' => ['tendered_centavos' => self::centavos($_POST['tendered'] ?? null), 'empties_returned' => self::count($_POST['empties'] ?? null)]],
             static fn (string $id): string => '/station-admin/pickups');
     }

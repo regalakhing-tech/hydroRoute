@@ -141,8 +141,9 @@ eq((await rpc(ids.admin, 'mark_order_ready', pid, 2, t.key())).data.status, 'rea
 eq((await rpc(ids.admin, 'record_pickup_collection', pid, {tendered_centavos: '1000', empties_returned: '1'}, 3, t.key())).error_code, 'validation', 'Pickup underpayment rejected');
 const coll = await rpc(ids.admin, 'record_pickup_collection', pid, {tendered_centavos: '5000', empties_returned: '1'}, 3, t.key());
 eq([coll.data.status, coll.data.change_centavos], ['collected', 3000], 'Pickup collected with change');
-await rpc(ids.admin, 'verify_payment', coll.data.payment_id, {}, 1, t.key());
-eq((await rpc(ids.admin, 'complete_order', pid, coll.data.version, t.key())).data.status, 'completed', 'Pickup flow completes');
+eq(coll.data.payment_state, 'verified', 'Pickup cash taken at the counter is verified at once');
+eq((await t.sql('select state, verified_by from public.payments where id = $1', [coll.data.payment_id]))[0], {state: 'verified', verified_by: ids.admin}, 'Verified by the owner who took the cash');
+eq((await rpc(ids.admin, 'complete_order', pid, coll.data.version, t.key())).data.status, 'completed', 'Pickup flow completes without a separate verification');
 const flow = (await t.sql('select to_status from public.order_status_logs where order_id = $1 order by order_version', [pid])).map(r => r.to_status);
 eq(flow, ['confirmed', 'preparing', 'ready', 'collected', 'completed'], 'Pickup status log');
 const dflow = (await t.sql('select to_status from public.order_status_logs where order_id = $1 order by order_version', [g1])).map(r => r.to_status);

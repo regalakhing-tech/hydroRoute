@@ -28,6 +28,9 @@ await rpc(ids.admin, 'start_preparation', p.data.order_id, 1, t.key());
 await rpc(ids.admin, 'mark_order_ready', p.data.order_id, 2, t.key());
 const coll = await rpc(ids.admin, 'record_pickup_collection', p.data.order_id, {tendered_centavos: '2000', empties_returned: '1'}, 3, t.key());
 const unverifiedPickup = coll.data.payment_id;
+eq((await t.sql('select state from public.payments where id = $1', [unverifiedPickup]))[0].state, 'verified', 'Pickup cash is verified at the counter');
+// Stand-in for rider cash still waiting for handover, so the sales report keeps its three separate measures.
+await t.sql("update public.payments set state = 'unverified', verified_by = null, verified_at = null where id = $1", [unverifiedPickup]);
 const c = await rpc(ids.customer, 'submit_order', S, t.order({round: 1}, {fulfillment: 'pickup', address_id: undefined, note: 'x'}), t.key());
 await rpc(ids.customer, 'cancel_order', c.data.order_id, 1, 'Changed plans', t.key());
 

@@ -190,16 +190,48 @@
 
     $$('[data-print]').forEach(b => b.addEventListener('click', () => window.print()));
 
-    // Unread badges in the navigation, refreshed every 60 seconds.
+    // Navigation badges (orders, messages, notices), refreshed every 20 seconds. A notice newer than the last one
+    // this browser showed pops up once as a toast that opens the order.
     const counts = $('[data-nav-counts]');
     if (counts) {
+        const role = counts.dataset.navCounts.split('/')[1];
+        const seenKey = 'hr-last-notice:' + role;
         const paint = data => $$('[data-nav-count]').forEach(badge => {
             const n = Number(data[badge.dataset.navCount] || 0);
             badge.textContent = n > 99 ? '99+' : String(n); badge.hidden = n === 0;
         });
+        const target = note => note.order_id
+            ? (role === 'station-admin' ? '/station-admin/orders?order=' : '/customer/tracking?order=') + encodeURIComponent(note.order_id)
+            : (/message/.test(note.kind) ? `/${role}/messages` : (role === 'station-admin' ? '/station-admin' : '/customer/notifications'));
+        const popup = note => {
+            const href = target(note);
+            if (window.Swal) {
+                window.Swal.fire({toast: true, position: 'top-end', icon: 'info', title: note.title, text: note.body || '', showConfirmButton: true,
+                    confirmButtonText: note.order_id ? 'View order' : 'Open', showCloseButton: true, timer: 15000, timerProgressBar: true, buttonsStyling: false,
+                    customClass: {popup: 'cursor-pointer', confirmButton: 'btn btn-primary btn-sm'},
+                    didOpen: el => el.addEventListener('click', e => { if (!e.target.closest('.swal2-close')) location.href = href; })});
+                return;
+            }
+            const link = document.createElement('a');
+            link.href = href; link.setAttribute('role', 'status');
+            link.className = 'fixed right-4 top-4 z-[100] block max-w-sm rounded-xl border border-cyan-200 bg-white p-4 text-sm shadow-lg';
+            const title = document.createElement('strong'); title.className = 'block'; title.textContent = note.title;
+            const body = document.createElement('span'); body.className = 'mt-1 block text-muted'; body.textContent = note.body || '';
+            link.append(title, body); document.body.append(link);
+            setTimeout(() => link.remove(), 15000);
+        };
+        const announce = note => {
+            if (!note || !note.created_at) return;
+            let seen = null;
+            try { seen = localStorage.getItem(seenKey); localStorage.setItem(seenKey, note.created_at); } catch { return; }
+            // First visit in this browser: remember the newest notice without replaying old ones.
+            if (seen !== null && Date.parse(note.created_at) > Date.parse(seen)) popup(note);
+        };
         const tick = async () => {
-            if (!document.hidden) { try { const body = await getJson(counts.dataset.navCounts); if (body.ok) paint(body.data); } catch { /* try again later */ } }
-            setTimeout(tick, 60000);
+            if (!document.hidden) {
+                try { const body = await getJson(counts.dataset.navCounts); if (body.ok) { paint(body.data); announce(body.data.latest); } } catch { /* try again later */ }
+            }
+            setTimeout(tick, 20000);
         };
         tick();
     }

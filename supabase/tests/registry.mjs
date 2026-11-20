@@ -70,7 +70,7 @@ await db.exec(`select public.provision_station_member(${q(owner2)}, (select id f
 await rejects(`select public.provision_station_member(${q(superadmin)}, ${q(approved.station_id)}, 'station_admin')`, '42501', 'Super Admin cannot join a station');
 await rejects(`select public.provision_station_member(${q(stranger)}, ${q(approved.station_id)}, 'super_admin')`, '22023', 'only station roles can be provisioned');
 await as(owner);
-eq((await one('select public.my_access() as a')).a, {roles: ['customer', 'station_admin'], stations: [{id: approved.station_id, name: 'Bia-an Fresh Water', slug: 'bia-an-fresh-water'}]}, 'owner logs in to their own station');
+eq((await one('select public.my_access() as a')).a, {roles: ['customer', 'station_admin'], stations: [{id: approved.station_id, name: 'Bia-an Fresh Water', slug: 'bia-an-fresh-water', status: 'approved'}]}, 'owner logs in to their own station');
 
 // Drivers: only the station's admin may add them, checked inside the database.
 await as(null, 'service_role');

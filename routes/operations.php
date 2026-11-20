@@ -18,7 +18,8 @@ return static function (Router $router, Gateway $db, CurrentUser $current): void
     Workspace::boot(new Workspace($db, $current));
 
     // Phase 3: the Supabase client is also the Auth provider (password change, sign-out everywhere).
-    $customer = new CustomerController($db, $current, $db, new App\Services\Geocoder('HydroRoute/1.0 (water refill ordering, Hamtic, Antique)'));
+    $geocoder = new App\Services\Geocoder('HydroRoute/1.0 (water refill ordering, Hamtic, Antique)');
+    $customer = new CustomerController($db, $current, $db, $geocoder);
     $router->get('/customer/addresses/reverse', [$customer, 'reverse']);
     foreach (['account/profile' => 'saveProfile', 'account/password' => 'changePassword', 'account/logout-all' => 'logoutEverywhere',
         'addresses/save' => 'saveAddress', 'addresses/delete' => 'deleteAddress', 'addresses/default' => 'setDefaultAddress'] as $path => $action) {
@@ -40,12 +41,13 @@ return static function (Router $router, Gateway $db, CurrentUser $current): void
     $router->post('/customer/notifications/read-all', [$orders, 'readAll']);
     $router->get('/customer/navigation-counts', [$orders, 'counts']);
 
-    $ops = new StationOpsController($db, $current);
+    $ops = new StationOpsController($db, $current, $geocoder);
+    $router->get('/station-admin/settings/reverse', [$ops, 'reverse']);
     foreach ([
         'orders/start' => 'start', 'orders/ready' => 'ready', 'orders/complete' => 'complete', 'orders/cancel' => 'cancel',
         'orders/reattempt' => 'reattempt', 'orders/fee-review' => 'reviewFee', 'pickups/collect' => 'collectPickup',
         'payments/verify' => 'verifyPayment', 'reviews/resolve' => 'resolveReview', 'dispatch' => 'dispatch', 'trips/close' => 'closeTrip',
-        'customers/classify' => 'classify', 'riders/save' => 'saveRider', 'notifications/read' => 'readNotification',
+        'customers/classify' => 'classify', 'riders/save' => 'saveRider', 'notifications/read' => 'readNotification', 'schedules/capacity' => 'saveCapacityDay',
     ] as $path => $action) {
         $router->post('/station-admin/' . $path, [$ops, $action]);
     }
@@ -58,7 +60,9 @@ return static function (Router $router, Gateway $db, CurrentUser $current): void
     $router->post('/rider/trips/result', [$rider, 'deliver']);
     $router->post('/rider/trips/close', [$rider, 'closeTrip']);
     $router->post('/rider/trips/location', [$rider, 'location']);
+    $router->post('/rider/trips/replan', [$rider, 'replan']);
     $router->get('/rider/trips/current', [$rider, 'current']);
+    $router->get('/rider/trips/route', [$rider, 'route']);
 
     $messages = new MessageController($db, $current);
     $router->post('/customer/messages/start', [$messages, 'start']);

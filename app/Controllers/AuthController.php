@@ -220,6 +220,8 @@ final class AuthController extends Controller
         }
         if ($role === 'station-admin' && count($access['stations']) > 1) $station = null;
         $this->startSession($session, $role, in_array($role, ['station-admin', 'rider'], true) ? $station : null);
+        // Station counters share one device all day: an opt-in, revocable 30-day sign-in (logging out ends it).
+        if ($role === 'station-admin' && ($_POST['remember'] ?? '') === '1') Session::remember();
         Session::keepInput([]);
 
         return $this->back('/' . $role, 'success', 'Welcome back, ' . explode(' ', $_SESSION['user']['name'])[0] . '!');

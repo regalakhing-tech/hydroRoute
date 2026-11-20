@@ -18,6 +18,11 @@ $t = $live['trip']; $stops = $live['stops'];
 $open = array_values(array_filter($stops, fn($s) => in_array($s['state'], ['pending','arrived'], true)));
 $stop = $open[0] ?? null; $next = $open[1] ?? null;
 $done = count($stops) - count($open);
+// Road route on OpenStreetMap; live.js asks /rider/trips/route (destination chosen by the server) and redraws as the rider moves.
+$routeMap = '<section class="panel space-y-3 p-4" data-route-map data-route-url="/rider/trips/route"><div class="flex flex-wrap items-center justify-between gap-2"><h2 class="flex items-center gap-2 font-semibold">' . U::icon('pin', 'size-4 text-water') . ($stop === null ? 'Road back to the station' : 'Road map to this stop') . '</h2><span class="text-sm text-muted" data-route-summary aria-live="polite">Finding the road route…</span></div>'
+    . '<div id="route-canvas" data-keep data-route-canvas class="h-64 overflow-hidden rounded-xl border border-line bg-foam md:h-80" role="img" aria-label="Road route map"></div>'
+    . '<details class="text-sm"><summary class="cursor-pointer font-semibold text-water">Turn-by-turn directions</summary><ol data-route-steps class="mt-2 list-decimal space-y-1 pl-5 text-muted"></ol></details>'
+    . '<p class="text-xs text-muted">Roads from OpenStreetMap. Follow traffic signs and local conditions; the map updates as you move.</p></section>';
 ?>
 <div data-rider-track="<?= U::e($t['id']) ?>" data-token="<?= U::e(Session::csrfToken()) ?>" hidden></div>
 <div class="mx-auto max-w-4xl space-y-4">
@@ -33,10 +38,12 @@ $done = count($stops) - count($open);
         <span class="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1"><?= U::icon('calendar','size-3.5') ?><?= U::e(S::time($t['dispatched_at'], 'D, M j · g:i A')) ?></span>
         <span class="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1"><?= U::icon('bottle','size-3.5') ?><?= (int) $t['load_units'] ?> of <?= (int) $t['capacity'] ?> containers</span>
         <span class="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1"><?= U::icon('pin','size-3.5') ?><span data-location-status>Checking location…</span></span>
+        <span class="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1"><?= U::icon('truck','size-3.5') ?><span data-travelled>0.0 km travelled</span></span>
     </div>
 </section>
 <?php if ($stop === null): ?>
 <section class="panel space-y-3 p-4 md:p-6"><h2 class="text-xl font-bold">All stops have a result</h2><p class="text-sm text-muted">Return to the station, hand over the cash and empty containers, then close the trip.</p><?= F::button('/rider/trips/close', ['trip_id' => $t['id'], 'expected_version' => $t['version']], 'I am back · close trip', 'primary', 'check', null, 'rider-action w-full') ?></section>
+<?= $routeMap ?>
 <?php else: $o = $stop['order']; $a = $stop['attempt']; $due = ((int) ($a['amount_due_centavos'] ?? $o['amount_due_centavos'])) / 100; ?>
 <section class="panel space-y-4 p-4 md:p-6">
     <div>
@@ -65,6 +72,12 @@ $done = count($stops) - count($open);
 <?php endif ?>
     <p class="text-xs text-muted">Your location is shared with your station only during this trip.</p>
 </section>
+<?php if ($o['latitude'] !== null): ?><?= $routeMap ?><?php endif ?>
+<?php $pendingCount = count(array_filter($open, static fn (array $s): bool => $s['state'] === 'pending')); if ($pendingCount >= 2): ?>
+<?= F::open('/rider/trips/replan', ['trip_id' => $t['id']], ['class' => 'panel flex flex-wrap items-center justify-between gap-3 p-4']) ?><input type="hidden" name="latitude" data-geo="latitude"><input type="hidden" name="longitude" data-geo="longitude">
+<p class="text-sm text-muted"><strong class="block text-ink">Changed your route?</strong>Re-plan the <?= $pendingCount ?> remaining stops nearest-first from where you are now.</p>
+<?= U::btn('Re-plan from here', '', 'secondary', 'refresh', ['type' => 'submit', 'data-confirm' => 'Re-plan the remaining stops from your current location?']) ?></form>
+<?php endif ?>
 <?php if ($next): ?><section class="panel flex items-center gap-3 p-4">
     <span class="title-icon size-10"><?= U::icon('arrow-right','size-5') ?></span>
     <div class="min-w-0"><p class="text-xs font-semibold text-muted">Next stop after this</p><h2 class="truncate font-bold"><?= U::e($next['order']['customer_name'] ?? '') ?></h2><p class="truncate text-sm text-muted"><?= U::e($next['order']['address_text'] ?? '') ?><?= ($next['order']['landmark'] ?? '') !== '' ? ', ' . U::e($next['order']['landmark']) : '' ?></p></div>

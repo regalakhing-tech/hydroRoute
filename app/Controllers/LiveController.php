@@ -49,6 +49,7 @@ abstract class LiveController extends Controller
             return $this->back($back, 'error', self::message($result));
         }
         unset($_SESSION['form_errors']);
+        \App\Services\EmailOutbox::$due = true; // a confirmed write may have queued a customer email
         $data = is_array($result['data'] ?? null) ? $result['data'] : [];
         [$type, $message, $path] = $done($data);
         return $json ? Response::json(['ok' => true, 'data' => $data, 'message' => $message]) : $this->back($path ?? $back, $type, $message);

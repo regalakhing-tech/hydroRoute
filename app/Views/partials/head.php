@@ -12,10 +12,10 @@
     <link rel="stylesheet" href="/assets/vendor/sweetalert2.min.css">
     <link rel="stylesheet" href="/assets/css/app.css">
     <?php if (empty($data['preview']) && ($data['role'] ?? '') === 'station-admin' && in_array($data['screen'] ?? '', ['settings-profile','settings-service-areas','settings-order-rules','products','schedules'], true)): ?>
-    <?php if ($data['screen'] === 'settings-profile'): ?><link rel="stylesheet" href="/assets/vendor/leaflet/leaflet.css"><script src="/assets/vendor/leaflet/leaflet.js" defer></script><?php endif ?>
+    <?php if ($data['screen'] === 'settings-profile'): ?><link rel="stylesheet" href="/assets/vendor/leaflet/leaflet.css"><script src="/assets/vendor/leaflet/leaflet.js" defer></script><script src="/assets/js/locate.js" defer></script><?php endif ?>
     <script src="/assets/js/station-setup.js" defer></script>
     <?php endif ?>
-    <?php if (empty($data['preview']) && ($data['role'] ?? '') === 'customer' && ($data['screen'] ?? '') === 'addresses'): ?><link rel="stylesheet" href="/assets/vendor/leaflet/leaflet.css"><script src="/assets/vendor/leaflet/leaflet.js" defer></script><?php endif ?>
+    <?php if (empty($data['preview']) && ((($data['role'] ?? '') === 'customer' && ($data['screen'] ?? '') === 'addresses') || (($data['role'] ?? '') === 'rider' && ($data['screen'] ?? '') === 'trip'))): ?><link rel="stylesheet" href="/assets/vendor/leaflet/leaflet.css"><script src="/assets/vendor/leaflet/leaflet.js" defer></script><?php if (($data['role'] ?? '') === 'customer'): ?><script src="/assets/js/locate.js" defer></script><?php endif ?><?php endif ?>
     <script src="/assets/vendor/sweetalert2.min.js" defer></script>
     <script src="/assets/js/app.js" defer></script>
     <script src="/assets/js/messages.js" defer></script>

@@ -88,8 +88,16 @@ final class Workspace
             $terms = $this->db->rpc('quote_delivery', ['p_station_id' => $stationId, 'p_address_id' => $a['id']], $token)['data'] ?? [];
             if (!empty($terms['eligible'])) $fees[$a['id']] = ((int) $terms['fee_centavos']) / 100;
         }
+        // Other customers' 5-minute slots (times only) and refills left per date; the database rechecks both on submit.
+        try {
+            $booked = $this->db->rpc('get_booked_slots', ['p_station_id' => $stationId], $token)['data'] ?? [];
+        } catch (RuntimeException) {
+            $booked = []; // Checkout still works; a taken time is then refused when the order is placed.
+        }
         return ['station' => $station, 'availability' => is_array($availability) ? $availability : [], 'products' => $known, 'addresses' => $addresses,
-            'items' => $items, 'form' => $form, 'quote' => $quote, 'fees' => $fees];
+            'items' => $items, 'form' => $form, 'quote' => $quote, 'fees' => $fees,
+            'booked' => ['slots' => array_values(array_filter((array) ($booked['slots'] ?? []), 'is_string')), 'refills_left' => (array) ($booked['refills_left'] ?? []),
+                'rules' => (array) ($booked['rules'] ?? [])]];
     }
 
     /** Customer home page. */
@@ -152,7 +160,17 @@ final class Workspace
     public function order(mixed $id): array
     {
         if (!is_string($id) || preg_match('/^[0-9a-f-]{36}$/D', $id) !== 1) return ['error_code' => 'not_found'];
-        return $this->call('get_customer_order', ['p_order_id' => $id], ['not_found']);
+        $order = $this->call('get_customer_order', ['p_order_id' => $id], ['not_found']);
+        // The "Change time" form needs the station's bookable windows and other customers' taken slots.
+        if (!empty($order['can_reschedule']) && isset($order['station']['id'])) {
+            try {
+                $order['availability'] = $this->call('get_station_availability', ['p_station_id' => $order['station']['id'], 'p_requested_at' => null]);
+                $order['booked'] = $this->call('get_booked_slots', ['p_station_id' => $order['station']['id']]);
+            } catch (RuntimeException) {
+                $order['can_reschedule'] = false; // no windows to offer; the rest of the page still works
+            }
+        }
+        return $order;
     }
 
     public function notifications(?string $stationId = null): array
@@ -180,7 +198,14 @@ final class Workspace
 
     public function queue(): array
     {
-        return $this->call('get_preparation_queue', ['p_station_id' => $this->stationId()]);
+        $queue = $this->call('get_preparation_queue', ['p_station_id' => $this->stationId()]);
+        // Recent cancellations for the "Cancelled" filter; the queue still works before 20261122000300 is applied.
+        try {
+            $queue['cancelled'] = $this->call('get_cancelled_orders', ['p_station_id' => $this->stationId()])['orders'] ?? [];
+        } catch (RuntimeException) {
+            $queue['cancelled'] = [];
+        }
+        return $queue;
     }
 
     public function dispatch(): array

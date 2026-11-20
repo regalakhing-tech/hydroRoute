@@ -76,6 +76,11 @@ final class UIController
         $needsStationSelection = false;
         if (!$this->preview) {
             $token = $role === 'customer' ? '' : $this->current?->token();
+            if ($token === null && $this->current?->unavailable) {
+                // Still logged in, the sign-in service is just unreachable: a login redirect would bounce straight back here.
+                return new Response('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="refresh" content="15"><title>Reconnecting | HydroRoute</title>'
+                    .'<body style="font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#083c53"><h1>Reconnecting…</h1><p>The sign-in service did not answer. You are still signed in; this page tries again by itself in 15 seconds.</p><p><a href="">Try again now</a></p></body>', 503, ['Retry-After' => '15']);
+            }
             if ($token === null) {
                 Session::flash('info', 'Your session ended. Please log in again.');
                 return Response::redirect('/login/'.$role);
@@ -164,7 +169,8 @@ final class UIController
         return [
             'counts'=>['Registered stations'=>count($stations), 'Pending applications'=>count(array_filter($registrations, static fn (array $r): bool => $r['status'] === 'pending')), 'Registered drivers'=>(int)$projection['unique_driver_count']],
             'stations'=>array_map(static function (array $s) use ($availability): array {
-                return ['id'=>$s['id'], 'name'=>$s['name'], 'area'=>$s['barangay'] ?: 'Hamtic', 'registration'=>ucfirst($s['registration_status']),
+                return ['id'=>$s['id'], 'name'=>$s['name'], 'area'=>$s['barangay'] ?: 'Hamtic', 'status'=>$s['registration_status'],
+                    'registration'=>$s['registration_status'] === 'archived' ? 'Removed' : ucfirst($s['registration_status']),
                     'availability'=>$availability[$s['id']] ?? ($s['availability_label'] ?? ($s['active'] ? 'Active' : 'Inactive')),
                     'drivers'=>(int)$s['registered_count'], 'date'=>self::date($s['created_at'] ?? null), 'contact'=>self::phone($s['phone'])];
             }, $stations),
@@ -185,14 +191,24 @@ final class UIController
     private function stationDrivers(string $token, string $stationId): array
     {
         try {
-            $drivers = $this->registry->drivers($token, $stationId);
+            $riders = $this->registry->stationRiders($token, $stationId);
         } catch (RuntimeException $exception) {
-            error_log('Station drivers unavailable: '.$exception->getMessage());
-            Session::flash('error', 'The driver list could not be loaded. Please refresh the page.');
-            return [];
+            // Before 20261122000200 is applied (or if it fails) list the drivers table as before, without the edit dialog.
+            error_log('Station riders unavailable, using the driver table: '.$exception->getMessage());
+            try {
+                $riders = array_map(static fn (array $d): array => ['user_id'=>$d['user_id'], 'rider_id'=>null, 'version'=>null, 'full_name'=>$d['full_name'],
+                    'phone'=>$d['phone'], 'email'=>$d['email'], 'capacity'=>$d['capacity'], 'enabled'=>(bool) $d['active'], 'trip_id'=>null, 'trip_no'=>null],
+                    $this->registry->drivers($token, $stationId));
+            } catch (RuntimeException $fallback) {
+                error_log('Station drivers unavailable: '.$fallback->getMessage());
+                Session::flash('error', 'The driver list could not be loaded. Please refresh the page.');
+                return [];
+            }
         }
-        // Same positional shape as the sample: name, initials, phone, status, trip, capacity, account id, email.
-        return array_map(static fn (array $d): array => [$d['full_name'], self::initials($d['full_name']), self::phone($d['phone']), $d['active'] ? 'Available' : 'Inactive', 'No active trip', (string) $d['capacity'], $d['user_id'], $d['email']], $drivers);
+        // Same positional shape as the sample (name, initials, phone, status, trip, capacity, account id, email), plus the editable rider record.
+        return array_map(static fn (array $d): array => [$d['full_name'], self::initials($d['full_name']), self::phone($d['phone']),
+            !$d['enabled'] ? 'Inactive' : ($d['trip_id'] !== null ? 'In progress' : 'Available'),
+            $d['trip_id'] !== null ? 'Trip '.(int) $d['trip_no'] : 'No active trip', (string) $d['capacity'], $d['user_id'], $d['email'], $d], $riders);
     }
     private static function initials(string $name): string
     {

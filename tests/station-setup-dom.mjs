@@ -137,7 +137,8 @@ for (const page of ['settings-service-areas', 'products', 'schedules']) {
 }
 assert.ok(existsSync('public/assets/js/station-setup.js'), 'Missing station setup progressive enhancement');
 const script = readFileSync('public/assets/js/station-setup.js', 'utf8');
-assert.doesNotMatch(script, /localStorage|fetch\(/);
+// No browser storage; the only network calls are the barangay outline file and the station reverse lookup named by the form.
+assert.doesNotMatch(script, /localStorage|fetch\((?!locationForm\.dataset\.(boundaries|reverse))/);
 const enhanced = new JSDOM(profile.documentElement.outerHTML, { runScripts: 'outside-only' });
 const { window } = enhanced;
 const events = {};
@@ -163,10 +164,28 @@ assert.match(noMap.window.document.querySelector('[data-location-status]').textC
 assert.equal(noMap.window.document.querySelector('[name="latitude"]').disabled, false);
 assert.equal(noMap.window.document.querySelector('[data-device-location]').disabled, true); checks++;
 const deniedGPS = new JSDOM(profile.documentElement.outerHTML, { runScripts: 'outside-only' });
-Object.defineProperty(deniedGPS.window.navigator, 'geolocation', { value: { getCurrentPosition(success, error) { error({ code: 1 }); } } });
+Object.defineProperty(deniedGPS.window.navigator, 'geolocation', { value: { watchPosition(success, error) { error({ code: 1 }); return 1; }, clearWatch() {} } });
+deniedGPS.window.eval(readFileSync('public/assets/js/locate.js', 'utf8'));
 deniedGPS.window.eval(script);
 deniedGPS.window.document.querySelector('[data-device-location]').click();
-assert.match(deniedGPS.window.document.querySelector('[data-location-status]').textContent, /coordinates manually/);
+assert.match(deniedGPS.window.document.querySelector('[data-location-status]').textContent, /permission is off/);
+// Barangay detection: a map pin fills the profile's barangay from the OpenStreetMap name (ALAB-style matching).
+{
+  const detect = new JSDOM(profile.documentElement.outerHTML, { runScripts: 'outside-only' });
+  const w = detect.window, handlers = {};
+  w.L = { map: () => ({ setView() { return this; }, on(name, handler) { handlers[name] = handler; return this; }, panTo() {} }),
+    tileLayer: () => ({ addTo() {} }), circleMarker: () => ({ addTo() { return this; }, setLatLng() {} }), circle: () => ({ addTo() { return this; }, remove() {} }) };
+  w.fetch = async url => ({ json: async () => String(url).includes('barangays') ? { features: [] } : { ok: true, data: { street: 'Rizal Street', areas: ['Barangay Guintas', 'Hamtic'] } } });
+  w.eval(readFileSync('public/assets/js/locate.js', 'utf8'));
+  w.eval(script);
+  const select = w.document.querySelector('form[action="/station-admin/settings/profile"] [name="barangay_id"]');
+  const guintas = [...select.options].find(o => o.textContent.trim() === 'Guintas');
+  select.value = '';
+  handlers.click({ latlng: { lat: 10.65, lng: 122.01 } });
+  await new Promise(r => setTimeout(r, 20));
+  assert.equal(select.value, guintas.value, 'Pin fills the profile barangay');
+  assert.match(w.document.querySelector('[data-barangay-status]').textContent, /Barangay Guintas detected from OpenStreetMap\. Save profile/); checks++;
+}
 assert.equal(deniedGPS.window.document.querySelector('[data-device-location]').disabled, false); checks++;
 const feeDOM = new JSDOM(rules.documentElement.outerHTML, { runScripts: 'outside-only' });
 feeDOM.window.eval(script);

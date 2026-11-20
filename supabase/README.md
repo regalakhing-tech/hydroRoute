@@ -27,6 +27,7 @@ Apply in file-name order. Each file is wrapped in `begin; … commit;` and repla
 | `20261122000300_capacity_review_fixes.sql` | Review fixes (prepared-then-cancelled stock, held repeat orders), `get_cancelled_orders` | Applied 2026-11-20 |
 | `20261122000400_email_outbox_resequence.sql` | Order-update email outbox with retries (`claim_email_batch`, `finish_email`, service key only); re-planning remaining stops after a failed stop or on the rider's request (`resequence_trip`) | Applied 2026-11-20 |
 | `20261122000500_checkout_rules.sql` | Station rules for the checkout "Good to know" box, returned by `get_booked_slots` | Applied 2026-11-20 |
+| `20261122000600_email_outbox_fixes.sql` | Email outbox fixes: a queued email is dropped if the customer turns off order updates; no sixth try after an expired fifth | Applied 2026-11-20 |
 
 `supabase/manual/` holds one-off data scripts (real stations, owner logins, box load units) and `2026-11-20-enable-station-jobs.sql`, which enables `pg_cron` and schedules `run_all_station_jobs()` every minute (scheduled-order release, overdue alerts, reservation expiry, location cleanup). Applied 2026-11-20; runs succeed every minute.
 

@@ -19,7 +19,7 @@ final class Geocoder
         $this->fetch = $fetch ?? self::curl(...);
     }
 
-    /** @return array{street: string, place: string, areas: list<string>} */
+    /** @return array{street: string, place: string, areas: list<string>, landmark: string} */
     public function reverse(float $lat, float $lng): array
     {
         $url = 'https://nominatim.openstreetmap.org/reverse?' . http_build_query(['format' => 'jsonv2', 'lat' => round($lat, 6), 'lon' => round($lng, 6),
@@ -30,10 +30,24 @@ final class Geocoder
             foreach ($keys as $key) if (is_string($a[$key] ?? null) && trim($a[$key]) !== '') return trim($a[$key]);
             return '';
         };
-        // OpenStreetMap usually tags Philippine barangays as village or suburb; the page matches these to the official list.
-        $areas = array_values(array_unique(array_filter(array_map(static fn (string $k): string => is_string($a[$k] ?? null) ? trim($a[$k]) : '', ['village', 'suburb', 'quarter', 'neighbourhood', 'hamlet']))));
-        return ['street' => mb_substr($pick(['road', 'pedestrian', 'footway', 'residential']), 0, 120),
-            'place' => mb_substr($pick(['hamlet', 'neighbourhood']), 0, 120), 'areas' => array_slice($areas, 0, 5)];
+        // Barangay candidates in ALAB's order: a value that says "Barangay", then the usual OpenStreetMap place keys, then the
+        // parts of the full place name. The page matches these to the official Hamtic list.
+        $explicit = '';
+        foreach ($a as $key => $value) {
+            if (is_string($value) && !in_array($key, ['road', 'amenity', 'shop', 'tourism', 'building', 'country', 'state', 'region', 'postcode'], true) && preg_match('/\bbarangay\b/i', $value)) { $explicit = trim($value); break; }
+        }
+        $parts = is_string($data['display_name'] ?? null) ? array_map('trim', explode(',', $data['display_name'])) : [];
+        $areas = array_values(array_unique(array_filter(array_merge([$explicit],
+            array_map(static fn (string $k): string => is_string($a[$k] ?? null) ? trim($a[$k]) : '', ['village', 'quarter', 'suburb', 'city_district', 'district', 'hamlet', 'neighbourhood', 'residential']),
+            $parts), static fn (string $v): bool => $v !== '' && mb_strlen($v) <= 80)));
+        $street = mb_substr($pick(['road', 'pedestrian', 'footway', 'residential']), 0, 120);
+        // Nearest named place (a store, school, chapel...) helps the rider find the gate; generic tags and the road itself are skipped.
+        $landmark = '';
+        foreach ([$data['name'] ?? '', $a['amenity'] ?? '', $a['shop'] ?? '', $a['tourism'] ?? '', $a['historic'] ?? '', $a['leisure'] ?? '', $a['office'] ?? '', $a['building'] ?? ''] as $candidate) {
+            $candidate = is_string($candidate) ? trim($candidate) : '';
+            if ($candidate !== '' && !in_array(mb_strtolower($candidate), ['yes', 'no', 'building', 'house', 'residential'], true) && $candidate !== $street) { $landmark = $candidate; break; }
+        }
+        return ['street' => $street, 'place' => mb_substr($pick(['hamlet', 'neighbourhood']), 0, 120), 'areas' => array_slice($areas, 0, 12), 'landmark' => mb_substr($landmark, 0, 120)];
     }
 
     private static function curl(string $url, string $userAgent): string

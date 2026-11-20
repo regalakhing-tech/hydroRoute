@@ -248,6 +248,10 @@ $db->results['get_operation_context'] = ['ok'=>true, 'data'=>[
     'closures'=>[], 'availability'=>[], 'fee_rules'=>[],
 ]];
 $ui = new UIController(false, new StationDirectory($db), $registry, $current, new StationSetup($db));
+// The Drivers page reads get_station_riders (driver details plus the rider record and active trip).
+$db->results['get_station_riders'] = ['ok'=>true, 'data'=>['riders'=>array_map(static fn (array $d): array => ['user_id'=>$d['user_id'], 'rider_id'=>null, 'version'=>null,
+    'full_name'=>$d['full_name'], 'phone'=>$d['phone'], 'email'=>$d['email'], 'vehicle'=>$d['vehicle'], 'plate_number'=>$d['plate_number'], 'capacity'=>$d['capacity'],
+    'enabled'=>(bool) $d['active'], 'trip_id'=>null, 'trip_no'=>null], array_values(array_filter($db->tables['drivers'], static fn (array $d): bool => $d['station_id'] === $newStation)))]];
 $page = $ui->page('station-admin', 'drivers');
 check($page->status === 200 && str_contains($page->body, 'Juan Reyes') && str_contains($page->body, 'juan.reyes@example.com') && !str_contains($page->body, 'Carlo Diaz'), 'drivers page lists database drivers, not samples');
 check(str_contains($page->body, 'action="/station-admin/drivers/password"') && str_contains($page->body, 'data-dialog-open="driver-password-'), 'each driver has a Set password dialog');

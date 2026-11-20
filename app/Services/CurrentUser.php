@@ -12,6 +12,8 @@ use Throwable;
 final class CurrentUser
 {
     private readonly Closure $clock;
+    /** True after a refresh failed for a temporary reason (outage, rate limit): the login is kept, but there is no token right now. */
+    public bool $unavailable = false;
 
     public function __construct(private readonly AuthProvider $auth, ?Closure $clock = null)
     {
@@ -30,8 +32,13 @@ final class CurrentUser
         }
         try {
             $session = $this->auth->refreshSession((string) ($tokens['refresh_token'] ?? ''));
+        } catch (SupabaseException $error) {
+            // Only a refusal (revoked or invalid refresh token) ends the login; an outage or 5xx keeps it for the next request.
+            if ($error->status >= 400 && $error->status < 500 && $error->status !== 429) Session::logout();
+            else $this->unavailable = true;
+            return null;
         } catch (Throwable) {
-            Session::logout();
+            $this->unavailable = true; // network failure: keep the session, so a remembered station device is not signed out by a blip
             return null;
         }
         $_SESSION['auth'] = [

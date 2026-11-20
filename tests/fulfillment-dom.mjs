@@ -35,3 +35,37 @@ for(const path of ['/customer/checkout?round=3&fulfillment=pickup','/customer/tr
 {
 const p=await page('/station-admin/orders');const method=p.d.querySelector('[data-filter-key="fulfillment"]');method.value='pickup';event(p,method,'change');let rows=[...p.d.querySelectorAll('#station-orders tbody tr')].filter(r=>!r.hidden);assert.equal(rows.length,2);assert.ok(rows.every(r=>r.dataset.fulfillment==='pickup'));const status=p.d.querySelector('[data-filter-target="station-orders"]:not([data-filter-key])');status.value='Ready';event(p,status,'change');rows=[...p.d.querySelectorAll('#station-orders tbody tr')].filter(r=>!r.hidden);assert.equal(rows.length,1);assert.match(rows[0].textContent,/HMT-109/);p.close();
 }
+
+// Live checkout slots: 5-minute times per date, cutoff by mode, other customers' slots disabled, refills left per date.
+{
+ const day='2099-01-05', other='2099-01-06';
+ const days={[day]:[['08:00','09:00','09:00','08:30']],[other]:[['10:00','10:20','10:20','10:20']]};
+ const html=`<form data-fulfillment-root data-initial-mode="delivery" data-persist="slots-test"><input type="radio" name="fulfillment" value="delivery" checked><input type="radio" name="fulfillment" value="pickup">
+ <div data-delivery-address><select name="address" data-fees="{}"><option value="a">A</option></select></div><section data-pickup-location hidden></section>
+ <input type="radio" name="delivery" value="asap"><input type="radio" name="delivery" value="scheduled" checked><input type="date" name="date" value="${day}">
+ <select name="time" data-slot-select data-slot-days='${JSON.stringify(days)}' data-booked='["${day}T08:05"]' data-refills='{"${day}":3}'><option value="">Choose a time</option></select>
+ <p><span data-refills-left></span></p><label for="notes">n</label><textarea name="notes" id="notes"></textarea><span data-checkout-total data-subtotal="40"></span></form>`;
+ const d=new JSDOM(html,{url:'http://localhost/',runScripts:'outside-only'});const w=d.window;w.eval(readFileSync('public/assets/js/fulfillment.js','utf8'));
+ const time=w.document.querySelector('[name="time"]'),values=()=>[...time.options].map(o=>o.value).filter(Boolean);
+ assert.deepEqual(values(),['08:00','08:05','08:10','08:15','08:20','08:25','08:30'],'Delivery slots every 5 minutes up to the delivery cutoff');
+ assert.equal(time.querySelector('[value="08:05"]').disabled,true);assert.match(time.querySelector('[value="08:05"]').textContent,/taken/);
+ assert.equal(time.querySelector('optgroup').label,'8 AM');assert.match(w.document.querySelector('[data-refills-left]').textContent,/3 refills left/);
+ time.value='08:10';const date=w.document.querySelector('[name="date"]');date.dispatchEvent(new w.Event('change',{bubbles:true}));assert.equal(time.value,'08:10','A still-valid choice is kept');const pick=w.document.querySelector('[name="fulfillment"][value="pickup"]');pick.checked=true;pick.dispatchEvent(new w.Event('change',{bubbles:true}));
+ assert.equal(values().at(-1),'08:55','Pickup slots run to the order cutoff');
+ date.value=other;date.dispatchEvent(new w.Event('change',{bubbles:true}));
+ assert.deepEqual(values(),['10:00','10:05','10:10','10:15'],'Changing the date rebuilds its slots');assert.equal(w.document.querySelector('[data-refills-left]').textContent,'');
+ w.close();console.log('Live checkout 5-minute slots passed.');
+}
+
+// Tracking "Change time" form: the same slot list, for the order's own mode, rebuilt on date change.
+{
+    const day = '2099-02-01';
+    const d = new JSDOM(`<form data-slot-form="pickup"><input type="date" name="date" value="${day}">
+     <select name="time" data-slot-select data-slot-days='{"${day}":[["08:00","08:30","08:10","08:00"]]}' data-booked='["${day}T08:05"]' data-refills='{}'></select><span data-refills-left></span></form>`, {url: 'http://localhost/', runScripts: 'outside-only'});
+    d.window.eval(readFileSync('public/assets/js/fulfillment.js', 'utf8'));
+    const opts = [...d.window.document.querySelectorAll('[name="time"] option')].filter(o => o.value);
+    assert.deepEqual(opts.map(o => o.value), ['08:00', '08:05', '08:10'], 'Pickup slots up to the order cutoff');
+    assert.equal(opts[1].disabled, true, 'Taken slot disabled');
+    d.window.close();
+    console.log('Reschedule slot form passed.');
+}

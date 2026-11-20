@@ -94,6 +94,11 @@ check($params['p_barangay_ids'] === [], 'explicit empty served-area set is allow
 $settings = ['max_order_units'=>'20','max_distance_km'=>'10','booking_days'=>'7','duplicate_minutes'=>'30','overdue_minutes'=>'120','institution_bonus_enabled'=>'0','urgency_asap'=>'40','urgency_soon'=>'25','urgency_later'=>'10','urgency_immediate_minutes'=>'60','urgency_soon_minutes'=>'180','aging_interval_minutes'=>'10','aging_points'=>'5','aging_cap'=>'25','institution_bonus'=>'10'];
 $params = $call('settings', $settings + ['expected_version' => '6'], 'save_station_settings');
 check(count($params['p_payload']) === 15 && $params['p_payload']['institution_bonus_enabled'] === false && $params['p_payload']['max_order_units'] === 20, 'settings uses all exact mutable field names and typed values');
+$params = $call('settings', $settings + ['batch_capacity_load_units' => '15', 'daily_gallon_limit' => '', 'customer_cancel_minutes' => '20', 'expected_version' => '6'], 'save_station_settings');
+check($params['p_payload']['batch_capacity_load_units'] === 15 && array_key_exists('daily_gallon_limit', $params['p_payload']) && $params['p_payload']['daily_gallon_limit'] === null
+    && $params['p_payload']['customer_cancel_minutes'] === 20, 'batch size, blank daily limit (no limit) and cancel window are typed');
+$params = $call('settings', $settings + ['batch_capacity_load_units' => '15', 'daily_gallon_limit' => '120', 'customer_cancel_minutes' => '15', 'expected_version' => '6'], 'save_station_settings');
+check($params['p_payload']['daily_gallon_limit'] === 120, 'daily refill limit sent as a number');
 $productForm = ['name'=>'Refill','pack_text'=>'5 gallons','description'=>'Clean','image_key'=>'water-jug','price'=>'123.45','returnable'=>'1','load_units'=>'1','active'=>'1'];
 foreach (['1.001','1e2','-1','1,000','9999999999999999999'] as $bad) {
     $post('product', ['price'=>$bad] + $productForm); $controller->product();

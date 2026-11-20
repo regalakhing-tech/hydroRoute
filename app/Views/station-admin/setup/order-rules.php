@@ -29,6 +29,12 @@ $rules = [
 <?php foreach ($rules as $key => [$label, $minimum, $maximum]): ?>
 <?= $field($label, $key, $value('settings', $key, $settings[$key]), 'number', ['required' => true, 'min' => $minimum, 'max' => $maximum, 'step' => $key === 'max_distance_km' ? 'any' : '1']) ?>
 <?php endforeach ?></div>
+<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+<?= $field('Containers per delivery trip', 'batch_capacity_load_units', $value('settings', 'batch_capacity_load_units', $settings['batch_capacity_load_units'] ?? 15), 'number', ['required' => true, 'min' => 1, 'max' => 500, 'step' => '1']) ?>
+<?= $field('Refills per day (blank = no limit)', 'daily_gallon_limit', $value('settings', 'daily_gallon_limit', $settings['daily_gallon_limit'] ?? ''), 'number', ['min' => 0, 'max' => 100000, 'step' => '1']) ?>
+<?= $field('Customer cancel window (minutes)', 'customer_cancel_minutes', $value('settings', 'customer_cancel_minutes', $settings['customer_cancel_minutes'] ?? 15), 'number', ['required' => true, 'min' => 1, 'max' => 1440, 'step' => '1']) ?>
+</div>
+<p class="text-sm text-muted">A trip serves one barangay and never carries more than this many containers (or the rider's vehicle limit, if smaller). Customers can cancel until preparation starts, and only within the window. Set a different refill limit for one date on the Schedules page.</p>
 <?= $check('Enable institution bonus', 'institution_bonus_enabled', $bool($value('settings', 'institution_bonus_enabled', $settings['institution_bonus_enabled']))) ?>
 <?= $save('Save order rules') ?></form>
 <?php

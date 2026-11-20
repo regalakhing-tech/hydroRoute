@@ -24,9 +24,20 @@ $mode = $form['fulfillment'];
 $schedule = empty($avail['accepting_asap']) ? 'scheduled' : $form['schedule'];
 $now = new DateTimeImmutable('now', new DateTimeZone('Asia/Manila'));
 [$date, $time] = $form['requested_at'] !== '' ? explode('T', $form['requested_at']) : [$now->format('Y-m-d'), ''];
-$times = [];
-foreach ($avail['preview'] ?? [] as $day) foreach ($day['windows'] ?? [] as $w) for ($t = strtotime($w['opens_at']); $t < strtotime($w['closes_at']); $t += 1800) $times[date('H:i', $t)] = date('g:i A', $t);
-ksort($times);
+// 5-minute slots per Manila date; one customer per slot. fulfillment.js rebuilds the list when the date or mode changes.
+$slotDays = [];
+foreach ($avail['preview'] ?? [] as $day) foreach ($day['windows'] ?? [] as $w) $slotDays[$day['date']][] = [substr($w['opens_at'], 0, 5), substr($w['closes_at'], 0, 5), substr($w['order_cutoff'] ?? $w['closes_at'], 0, 5), substr($w['delivery_cutoff'] ?? $w['closes_at'], 0, 5)];
+$booked = $live['booked'] ?? ['slots' => [], 'refills_left' => []];
+$taken = array_flip($booked['slots']);
+$slots = [];
+foreach ($slotDays[$date] ?? [] as [$open, $close, $orderCut, $deliveryCut]) {
+    for ($t = (int) ceil(strtotime("$date $open") / 300) * 300; $t < strtotime("$date $close") && date('H:i', $t) <= ($mode === 'delivery' ? $deliveryCut : $orderCut); $t += 300) {
+        if ("$date " . date('H:i', $t) <= $now->format('Y-m-d H:i')) continue;
+        $slots[date('H:i', $t)] = isset($taken[$date . 'T' . date('H:i', $t)]);
+    }
+}
+ksort($slots);
+$refillsLeft = $booked['refills_left'][$date] ?? null;
 $addressOptions = [];
 foreach ($live['addresses'] as $a) $addressOptions[$a['id']] = $a['label'] . ' — ' . $a['address'] . ($a['latitude'] === null ? ' (no map pin)' : '');
 if ($addressOptions === []) $addressOptions = ['' => 'No saved address yet'];
@@ -48,9 +59,13 @@ $err = static fn (string $f): string => isset($errors[$f]) ? '<p class="mt-2 tex
 <div data-delivery-address><?= U::title('Delivery address', 'truck', '') ?><p class="muted mb-3">Choose where you want your order delivered.</p><?= U::select('Saved address', 'address', $addressOptions, $form['address_id'], ['required' => true, 'data-fees' => json_encode($live['fees'])]) ?><?= $err('address_id') ?><a href="/customer/addresses" class="inline-block mt-2 text-water font-semibold">Manage addresses</a></div>
 <section data-pickup-location hidden class="rounded-xl bg-foam p-4"><?= U::title('Pickup location', 'file', '') ?><p class="font-semibold mt-2"><?= U::e($station['name']) ?></p><p><?= U::e($station['address']) ?></p><p class="muted mt-2">Bring your empty containers. Wait for the station to confirm your order is ready before collecting.</p></section>
 <fieldset><legend class="section-title" data-option-title>2. Delivery option</legend><p class="muted mb-3"><span data-timing-question>When do you want your order delivered?</span></p><?= $err('schedule') ?>
-<label class="flex gap-3 mb-3"><input type="radio" name="delivery" value="asap" <?= $schedule === 'asap' ? 'checked' : '' ?> <?= empty($avail['accepting_asap']) ? 'disabled' : '' ?> class="accent-cyan-600"><span><strong data-asap-title>As soon as possible (ASAP)</strong><span class="block muted"><span data-asap-copy><?= empty($avail['accepting_asap']) ? 'Unavailable while the station is closed.' : 'For the next available delivery.' ?></span></span></span></label>
+<label class="flex gap-3 mb-3"><input type="radio" name="delivery" value="asap" <?= $schedule === 'asap' ? 'checked' : '' ?> <?= empty($avail['accepting_asap']) ? 'disabled' : '' ?> class="accent-cyan-600"><span><strong data-asap-title>Wait for your turn</strong><span class="block muted"><span data-asap-copy><?= empty($avail['accepting_asap']) ? 'Unavailable while the station is closed.' : 'No need to pick a time. The station delivers when your turn in line comes.' ?></span></span></span></label>
 <label class="flex gap-3"><input type="radio" name="delivery" value="scheduled" <?= $schedule === 'scheduled' ? 'checked' : '' ?> class="accent-cyan-600"><span><strong data-schedule-title>Schedule delivery for later</strong><span class="block muted">Today or up to 7 days ahead, within the station's hours.</span></span></label>
-<div class="grid sm:grid-cols-2 gap-3 mt-3"><?= U::field('Preferred date', 'date', $date, 'date', ['min' => $now->format('Y-m-d'), 'max' => $now->modify('+7 days')->format('Y-m-d')]) ?><?= U::select('Preferred time', 'time', ['' => 'Choose a time'] + $times, $time) ?></div><?= $err('requested_at') ?></fieldset>
+<div class="grid sm:grid-cols-2 gap-3 mt-3"><?= U::field('Preferred date', 'date', $date, 'date', ['min' => $now->format('Y-m-d'), 'max' => $slotDays !== [] ? max(array_keys($slotDays)) : $now->modify('+6 days')->format('Y-m-d')]) ?><div class="min-w-0"><label class="label" for="time">Preferred time</label><select id="time" name="time" class="field" data-slot-select data-slot-days="<?= U::e(json_encode($slotDays)) ?>" data-booked="<?= U::e(json_encode($booked['slots'])) ?>" data-refills="<?= U::e(json_encode((object) $booked['refills_left'])) ?>"><option value="">Choose a time</option>
+<?php $hour = null; foreach ($slots as $value => $isTaken): if (substr($value, 0, 2) !== $hour): ?><?= $hour !== null ? '</optgroup>' : '' ?><optgroup label="<?= U::e(date('g A', strtotime("$date $value"))) ?>"><?php $hour = substr($value, 0, 2); endif ?>
+<option value="<?= U::e($value) ?>"<?= $value === $time && !$isTaken ? ' selected' : '' ?><?= $isTaken ? ' disabled' : '' ?>><?= U::e(date('g:i A', strtotime("$date $value")) . ($isTaken ? ' — taken' : '')) ?></option>
+<?php endforeach ?><?= $hour !== null ? '</optgroup>' : '' ?></select></div></div>
+<p class="hint" data-slot-hint>Each 5-minute time is for one customer only. Times marked “taken” are already booked.<span data-refills-left><?= $refillsLeft !== null ? ' ' . U::e((string) $refillsLeft) . ' refill' . ((int) $refillsLeft === 1 ? '' : 's') . ' left on this date.' : '' ?></span></p><?= $err('requested_at') ?></fieldset>
 <div><?= U::title('3. Empty containers to return', 'bottle', 'mb-3') ?><p class="rounded-lg bg-foam p-3 text-sm">Please prepare <strong><?= (int) $returns ?></strong> empty container<?= $returns === 1 ? '' : 's' ?> for exchange (one for each refill in your order).</p></div>
 <div><h2 class="section-title mb-3"><span data-notes-title>4. Delivery notes (optional)</span></h2><?= U::textarea('Instructions for your delivery team', 'notes', $form['note'], ['maxlength' => '200', 'placeholder' => 'Look for the blue gate. Please call upon arrival.']) ?><?= $err('note') ?></div>
 <fieldset><legend class="section-title mb-3">5. Payment method</legend><label class="flex items-center gap-3 rounded-lg border border-line bg-foam p-4"><input type="radio" name="payment" value="cash" checked required class="accent-cyan-600"><span><strong><span data-payment-title>Cash on delivery</span></strong><span class="block muted"><span data-payment-copy>Pay when your order is delivered.</span></span></span></label><?= $err('phone') ?></fieldset>
@@ -62,4 +77,13 @@ $err = static fn (string $f): string => isset($errors[$f]) ? '<p class="mt-2 tex
 <div class="flex justify-between rounded-lg bg-foam p-4 mt-4 font-bold text-lg"><span>Total amount</span><span data-checkout-total data-quote="total" data-subtotal="<?= $subtotal ?>"><?= U::money($subtotal + $fee) ?></span></div>
 <p data-quote-error class="mt-3 text-sm font-semibold text-rose-700 <?= $quoteError === '' ? 'hidden' : '' ?>" role="alert"><?= U::e($quoteError) ?></p>
 <p class="my-5 rounded-lg bg-amber-50 p-4 text-sm text-amber-800"><span data-review-copy>Check your address before saving.</span> The station confirms the final amount; the delivery fee never goes up at your door.</p>
+<?php $rules = $booked['rules'] ?? []; $cancelMinutes = (int) ($rules['cancel_minutes'] ?? 15); $tripSize = (int) ($rules['trip_containers'] ?? 0); $dailyRefills = $rules['daily_refills'] ?? null; ?>
+<section class="mb-5 rounded-lg border border-line bg-mist p-4 text-sm" aria-labelledby="order-rules-title"><h3 id="order-rules-title" class="flex items-center gap-2 font-bold"><?= U::icon('file', 'size-4 text-water') ?>Good to know</h3>
+<ul class="mt-2 space-y-1.5 text-muted">
+<li class="flex gap-2"><span class="text-water">•</span><span>You can cancel within <strong class="text-ink"><?= $cancelMinutes ?> minute<?= $cancelMinutes === 1 ? '' : 's' ?></strong> after ordering, and only before the station starts preparing. After that, message the station.</span></li>
+<li class="flex gap-2"><span class="text-water">•</span><span>Each pick-a-time slot is for one customer. Times marked “taken” are already booked.</span></li>
+<?php if ($tripSize > 0): ?><li class="flex gap-2"><span class="text-water">•</span><span>One delivery trip carries up to <strong class="text-ink"><?= $tripSize ?> containers</strong> to one barangay. For more, place two orders or choose pickup.</span></li><?php endif ?>
+<?php if ($dailyRefills !== null): ?><li class="flex gap-2"><span class="text-water">•</span><span>The station takes up to <strong class="text-ink"><?= (int) $dailyRefills ?> refills a day</strong>, first come, first served.</span></li><?php endif ?>
+<li class="flex gap-2"><span class="text-water">•</span><span>Pay in cash when you receive or collect your water.</span></li>
+</ul></section>
 <?= U::btn('Place order', '', 'primary', '', ['type' => 'submit', 'class' => 'w-full']) ?><div class="mt-3"><?= U::btn('Back to station', '/customer/station?station=' . $station['id'], 'secondary', '', ['class' => 'w-full']) ?></div></aside></form>

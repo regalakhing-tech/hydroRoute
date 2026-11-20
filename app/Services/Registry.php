@@ -84,6 +84,23 @@ final class Registry
         return $this->db->select('drivers', $query, $token);
     }
 
+    /** Drivers page rows: driver details, the rider record to edit (id, version) and any active trip. */
+    public function stationRiders(string $token, string $stationId): array
+    {
+        $result = $this->db->rpc('get_station_riders', ['p_station_id' => $stationId], $token);
+        if (($result['ok'] ?? false) !== true || !is_array($result['data']['riders'] ?? null)) {
+            throw new \RuntimeException('Station riders unavailable.');
+        }
+        return $result['data']['riders'];
+    }
+
+    /** Super Admin: suspend, remove (archive) or reactivate a station; returns the database envelope. */
+    public function setStationStatus(string $token, string $stationId, string $status, string $expected, string $reason, string $key): array
+    {
+        return $this->db->rpc('set_station_status', ['p_station_id' => $stationId, 'p_status' => $status, 'p_expected_status' => $expected,
+            'p_reason' => $reason, 'p_request_key' => $key], $token);
+    }
+
     public function provisionMember(string $userId, string $stationId, string $role): void
     {
         $this->db->adminRpc('provision_station_member', ['p_user_id' => $userId, 'p_station_id' => $stationId, 'p_role' => $role]);

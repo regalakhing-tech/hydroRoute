@@ -58,6 +58,7 @@ return static function (Router $router, array $config): void {
     $router->post('/register-station', [$registration, 'submit']);
     $router->post('/super-admin/application/decision', [$registryAdmin, 'decide']);
     $router->post('/super-admin/application/invite', [$registryAdmin, 'resendInvite']);
+    $router->post('/super-admin/stations/status', [$registryAdmin, 'stationStatus']);
     $router->post('/station-admin/drivers', [$station, 'addDriver']);
     $router->post('/station-admin/drivers/password', [$station, 'setDriverPassword']);
     foreach ([
@@ -74,5 +75,12 @@ return static function (Router $router, array $config): void {
         $router->get($path, static fn () => $ui->page($page['role'], $page['screen']));
     }
     $router->get('/api/health', [$system, 'health']);
+    // Scheduler hook for the email outbox (for example Supabase pg_net or any cron). Disabled unless JOB_SECRET is set.
+    $router->post('/jobs/email', static function () use ($supabase, $config): App\Core\Response {
+        $secret = (string) getenv('JOB_SECRET');
+        if (strlen($secret) < 24 || !hash_equals($secret, (string) ($_SERVER['HTTP_X_JOB_KEY'] ?? ''))) return App\Core\Response::json(['ok' => false], 404);
+        $outbox = App\Services\EmailOutbox::fromConfig($supabase, $config);
+        return App\Core\Response::json(['ok' => true] + ($outbox?->flush(20) ?? ['sent' => 0, 'failed' => 0, 'mail' => 'not configured']));
+    });
     (require __DIR__ . '/operations.php')($router, $supabase, $current);
 };

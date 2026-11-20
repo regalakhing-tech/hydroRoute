@@ -17,12 +17,13 @@ foreach ($setup['barangays'] as $barangay) $barangays[(string) $barangay['id']] 
 <?= U::textarea('Station address', 'address', (string) $value('profile', 'address', $station['address']), ['required' => true, 'maxlength' => 250]) ?>
 <?= U::textarea('About the station', 'description', (string) $value('profile', 'description', $station['description']), ['maxlength' => 400]) ?>
 <?= $save('Save profile') ?></form>
-<?php $start('settings/location', 'location', $station['location_version'], [], ['data-station-location' => true]); ?>
+<?php $start('settings/location', 'location', $station['location_version'], [], ['data-station-location' => true, 'data-boundaries' => '/assets/data/hamtic-barangays.json', 'data-reverse' => '/station-admin/settings/reverse']); ?>
 <?= U::title('Station location', 'pin') ?>
-<p class="muted text-sm">Enter coordinates, choose a map pin, or use this device's location. Saving requires a pin within the Hamtic coordinate bounds.</p>
+<p class="muted text-sm">Enter coordinates, choose a map pin, or use this device's location. The barangay is detected from the pin. Saving requires a pin within the Hamtic coordinate bounds.</p>
 <div data-station-map class="h-80 overflow-hidden rounded-xl border border-line" role="region" aria-label="Station pin map"></div>
-<?= U::btn('Use device location', '', 'secondary', 'pin', ['data-device-location' => true]) ?>
+<div class="flex flex-wrap items-center gap-3"><?= U::btn('Use device location', '', 'secondary', 'pin', ['data-device-location' => true]) ?><span data-location-quality hidden></span></div>
 <p data-location-status class="text-sm text-muted" role="status" aria-live="polite">Enter latitude and longitude below. Map and device controls require JavaScript.</p>
+<p data-barangay-status class="text-sm font-semibold text-water" role="status" aria-live="polite" hidden></p>
 <div class="grid gap-4 sm:grid-cols-2">
 <?= $field('Latitude', 'latitude', $value('location', 'latitude', $station['latitude']), 'number', ['required' => true, 'min' => '10.584854', 'max' => '10.746484', 'step' => 'any', 'inputmode' => 'decimal']) ?>
 <?= $field('Longitude', 'longitude', $value('location', 'longitude', $station['longitude']), 'number', ['required' => true, 'min' => '121.961241', 'max' => '122.073730', 'step' => 'any', 'inputmode' => 'decimal']) ?>

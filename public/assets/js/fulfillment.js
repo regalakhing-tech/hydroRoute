@@ -1,5 +1,48 @@
 (() => {
     'use strict';
+    // 5-minute slots for the form's chosen date and mode; other customers' slots stay visible but disabled.
+    const slots = (form, mode) => {
+        const slotSelect = form.querySelector('[data-slot-select]');
+        if (!slotSelect) return;
+        const day = form.querySelector('[name="date"]')?.value || '';
+        let days = {}, booked = [], left = {};
+        try { days = JSON.parse(slotSelect.dataset.slotDays || '{}'); booked = JSON.parse(slotSelect.dataset.booked || '[]'); left = JSON.parse(slotSelect.dataset.refills || '{}'); } catch {}
+        const taken = new Set(booked), keep = slotSelect.value;
+        const now = new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 16).replace('T', ' ');
+        const mins = s => Number(s.slice(0, 2)) * 60 + Number(s.slice(3, 5));
+        const hhmm = m => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+        const label = m => ((Math.floor(m / 60) + 11) % 12 + 1) + ':' + String(m % 60).padStart(2, '0') + (m < 720 ? ' AM' : ' PM');
+        const times = new Set();
+        for (const [open, close, orderCut, deliveryCut] of days[day] || []) {
+            const cut = mins(mode === 'pickup' ? orderCut : deliveryCut);
+            for (let m = Math.ceil(mins(open) / 5) * 5; m < mins(close) && m <= cut; m += 5) if (day + ' ' + hhmm(m) > now) times.add(m);
+        }
+        slotSelect.replaceChildren(new Option('Choose a time', ''));
+        let group = null;
+        for (const m of [...times].sort((a, b) => a - b)) {
+            if (!group || group.dataset.hour !== String(Math.floor(m / 60))) {
+                group = document.createElement('optgroup');
+                group.dataset.hour = String(Math.floor(m / 60));
+                group.label = ((Math.floor(m / 60) + 11) % 12 + 1) + (m < 720 ? ' AM' : ' PM');
+                slotSelect.append(group);
+            }
+            const isTaken = taken.has(day + 'T' + hhmm(m));
+            const option = new Option(label(m) + (isTaken ? ' — taken' : ''), hhmm(m), false, hhmm(m) === keep && !isTaken);
+            option.disabled = isTaken;
+            group.append(option);
+        }
+        const refills = form.querySelector('[data-refills-left]');
+        if (refills) refills.textContent = day in left ? ` ${left[day]} refill${left[day] === 1 ? '' : 's'} left on this date.` : '';
+    };
+    // Reschedule form on tracking: same slot list for the order's own mode, rebuilt when the date changes.
+    const slotForms = () => document.querySelectorAll('form[data-slot-form]:not([data-slot-ready])').forEach(form => {
+        const mode = form.dataset.slotForm === 'pickup' ? 'pickup' : 'delivery';
+        form.dataset.slotReady = '';
+        slots(form, mode);
+        form.addEventListener('change', event => { if (event.target.name === 'date') slots(form, mode); });
+    });
+    slotForms();
+    document.addEventListener('hydro:refreshed', slotForms); // forms that arrive with a background refresh
     document.querySelectorAll('[data-fulfillment-root]').forEach(form => {
         const base = form.dataset.persist.replace(/-pickup$/, '');
         let mode = form.dataset.initialMode === 'pickup' ? 'pickup' : 'delivery';
@@ -17,6 +60,7 @@
             });
         };
         const copy = (selector,text) => { const e=form.querySelector(selector); if(e)e.textContent=text; };
+        const buildSlots = () => slots(form, mode);
         const update = () => {
             const pickup = mode === 'pickup';
             form.dataset.persist=key(mode);
@@ -26,9 +70,9 @@
             form.querySelector('[data-pickup-location]').hidden=!pickup;
             copy('[data-option-title]',pickup?'2. Pickup option':'2. Delivery option');
             copy('[data-timing-question]',pickup?'When would you like to collect your order?':'When do you want your order delivered?');
-            copy('[data-asap-title]',pickup?'Next available pickup (ASAP)':'As soon as possible (ASAP)');
+            copy('[data-asap-title]','Wait for your turn');
             copy('[data-schedule-title]',pickup?'Schedule pickup for later':'Schedule delivery for later');
-            copy('[data-asap-copy]',pickup?'Collect when the station confirms your order is ready.':'For the next available delivery.');
+            copy('[data-asap-copy]',pickup?'No need to pick a time. Collect when the station says your order is ready.':'No need to pick a time. The station delivers when your turn in line comes.');
             copy('[data-notes-title]',pickup?'4. Pickup notes (optional)':'4. Delivery notes (optional)');
             const notes=form.querySelector('[name="notes"]');
             form.querySelector('label[for="notes"]').textContent=pickup?'Instructions for station collection':'Instructions for your delivery team';
@@ -43,6 +87,7 @@
             const php=v=>'PHP '+v.toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
             copy('[data-delivery-fee]',pickup?'Free (pickup)':php(fee));
             if(total)total.textContent=php(Number(total.dataset.subtotal)+fee);
+            buildSlots();
         };
         // app.js restores delivery drafts before this module; a mode is always explicit.
         if(mode==='pickup')restore(mode);
@@ -50,6 +95,7 @@
         form.addEventListener('change',event=>{
             if(event.target.name==='fulfillment') {mode=event.target.value==='pickup'?'pickup':'delivery';restore(mode);update();}
             if(event.target.name==='delivery'||event.target.name==='address')update();
+            if(event.target.name==='date')buildSlots();
         });
     });
     document.querySelectorAll('#pickup-orders [data-search-row]').forEach(row => {

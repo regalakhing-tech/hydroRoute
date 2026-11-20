@@ -64,6 +64,29 @@ HTML);
         return $mail;
     }
 
+    /** Order and reservation updates from the email outbox (plain notice plus a button to the order). */
+    public function sendNotice(string $to, string $name, string $subject, string $body, string $link): void
+    {
+        $this->noticeEmail($to, $name, $subject, $body, $link)->send();
+    }
+
+    public function noticeEmail(string $to, string $name, string $subject, string $body, string $link): PHPMailer
+    {
+        $mail = $this->message($to, $name, $subject);
+        $safeSubject = self::e($subject);
+        $safeBody = nl2br(self::e($body));
+        $safeLink = self::e($link);
+        $mail->Body = self::layout($name, <<<HTML
+<tr><td style="padding:8px 32px 0;font-size:18px;line-height:26px;font-weight:bold">{$safeSubject}</td></tr>
+<tr><td style="padding:8px 32px 0;font-size:16px;line-height:24px">{$safeBody}</td></tr>
+<tr><td style="padding:22px 32px" align="center"><a href="{$safeLink}" style="display:inline-block;background:#00779a;color:#ffffff;text-decoration:none;font-weight:bold;font-size:16px;padding:14px 28px;border-radius:10px">Open in HydroRoute</a></td></tr>
+<tr><td style="padding:0 32px 28px;font-size:13px;line-height:20px;color:#557185">You get these emails because order updates are on in your HydroRoute account. Turn them off on your Account page.</td></tr>
+HTML);
+        $mail->AltBody = "Hi {$name},\n\n{$subject}\n\n{$body}\n\nOpen in HydroRoute: {$link}\n\nTurn these emails off on your Account page.\n";
+
+        return $mail;
+    }
+
     private function message(string $to, string $name, string $subject): PHPMailer
     {
         $mail = new PHPMailer(true);

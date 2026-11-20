@@ -14,12 +14,16 @@
     --font-heading: "Inter", "Segoe UI", sans-serif;
     /* Inter at 800 reads heavy in dense dashboards; cap the old extrabold classes at bold. */
     --font-weight-extrabold: 700;
+    /* Wide desktop monitors (1920px screens report ~1905px with the scrollbar gutter). */
+    --breakpoint-3xl: 112rem;
 }
 @layer base {
     html { @apply scroll-smooth; scrollbar-gutter: stable; }
     /* Admin workspaces are data-dense: a smaller root size scales every rem-based size down together. */
     html.admin-compact { font-size: 15px; }
     @media (width >= 64rem) { html.admin-compact { font-size: 14px; } }
+    /* 1440p and larger: there is room again, so restore the normal size. */
+    @media (width >= 150rem) { html.admin-compact { font-size: 16px; } }
     body { @apply m-0 bg-mist font-sans text-[0.9375rem] leading-relaxed text-ink antialiased; }
     button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
     button:not(:disabled), a, select, summary { cursor: pointer; }
@@ -75,7 +79,8 @@
     .hero-enter { animation: hero-enter .7s ease-out both; }
     .rider-action { @apply min-h-12 text-base; }
 }
-[data-sidebar][data-open="true"] { transform: translateX(0); }
+/* Tailwind 4's -translate-x-full sets the `translate` property, so opening the phone sidebar must reset `translate` (not `transform`). */
+[data-sidebar][data-open="true"] { --tw-translate-x: 0px; translate: none; transform: none; }
 /* Compact admin pages keep the sidebar at its normal size; px values ignore the smaller root size. */
 html.admin-compact [data-sidebar] .nav-link { font-size: 15px; padding: 11px 14px; gap: 12px; }
 html.admin-compact [data-sidebar] .nav-link svg { width: 20px; height: 20px; }

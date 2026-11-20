@@ -125,6 +125,19 @@ check(str_contains($page, 'PHP 50.00') && str_contains($page, '1.1 km') && str_c
 $db->results['quote_order'] = ['ok' => false, 'error_code' => 'load_units_missing', 'field_errors' => ['items' => 'Some products are pickup only.'], 'data' => []];
 $page = $ui->page('customer', 'checkout')->body;
 check(str_contains($page, 'Some products are pickup only.') && str_contains($page, 'data-subtotal="40"') && str_contains($page, '2 &times; PHP 20.00'), 'A refused quote still lists the basket at catalogue prices');
+// 5-minute slots for the chosen date; another customer's slot is listed but disabled, and refills left are shown.
+$day = (new DateTimeImmutable('now', new DateTimeZone('Asia/Manila')))->modify('+1 day')->format('Y-m-d');
+$db->results['get_station_availability'] = ['ok' => true, 'data' => ['accepting_asap' => true, 'can_book' => true, 'label' => 'Open now',
+    'preview' => [['date' => $day, 'windows' => [['opens_at' => '08:00:00', 'closes_at' => '09:00:00', 'order_cutoff' => '09:00:00', 'delivery_cutoff' => '08:30:00']]]]]];
+$db->results['get_booked_slots'] = ['ok' => true, 'data' => ['slots' => [$day . 'T08:05'], 'refills_left' => [$day => 4], 'rules' => ['cancel_minutes' => 15, 'trip_containers' => 30, 'daily_refills' => 120]]];
+$_GET = ['station' => S, 'qty' => [P => '2'], 'delivery' => 'scheduled', 'date' => $day, 'time' => '08:10'];
+$page = $ui->page('customer', 'checkout')->body;
+check(str_contains($page, '<option value="08:00">8:00 AM</option>') && str_contains($page, '<option value="08:05" disabled>8:05 AM — taken</option>')
+    && str_contains($page, '<option value="08:10" selected>') && str_contains($page, '<option value="08:30">') && !str_contains($page, 'value="08:35"'),
+    'Checkout lists 5-minute delivery slots up to the cutoff with taken ones disabled');
+check(str_contains($page, '4 refills left on this date.') && str_contains($page, 'Wait for your turn') && !str_contains($page, 'ASAP'), 'Refills left and friendly queue wording shown');
+check(str_contains($page, 'Good to know') && str_contains($page, '15 minutes</strong> after ordering') && str_contains($page, '30 containers') && str_contains($page, '120 refills a day'), 'Checkout shows the station rules in plain words');
+$db->results['get_station_availability'] = ['ok' => true, 'data' => ['accepting_asap' => true, 'can_book' => true, 'label' => 'Open now', 'preview' => []]];
 $_GET = ['station' => '99999999-9999-4999-8999-999999999999'];
 $db->tables['stations'][0]['id'] = S;
 check(str_contains($ui->page('customer', 'checkout')->body, 'Station not found'), 'Unknown station');

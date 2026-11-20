@@ -49,7 +49,9 @@ final class OrderController extends LiveController
 
     public function reschedule(): Response
     {
-        return $this->orderAction('reschedule_order', static fn (string $id): array => ['p_requested_at' => self::manila($_POST['requested_at'] ?? null)],
+        // The tracking form sends a date and a 5-minute time; older clients send one requested_at value.
+        $at = is_string($_POST['requested_at'] ?? null) ? $_POST['requested_at'] : (is_string($_POST['date'] ?? null) && is_string($_POST['time'] ?? null) ? $_POST['date'] . 'T' . $_POST['time'] : null);
+        return $this->orderAction('reschedule_order', static fn (string $id): array => ['p_requested_at' => self::manila($at)],
             static fn (array $o): array => ['success', 'Order rescheduled.', null]);
     }
 

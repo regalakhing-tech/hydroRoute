@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Core\Session;
 use SessionHandlerInterface;
 use SessionUpdateTimestampHandlerInterface;
 use Throwable;
@@ -58,7 +59,7 @@ final class SessionStore implements SessionHandlerInterface, SessionUpdateTimest
             $this->db->adminRpc('session_write', [
                 'p_id' => hash('sha256', $id),
                 'p_data' => $data === '' ? '' : base64_encode($data),
-                'p_ttl' => (int) ini_get('session.gc_maxlifetime'),
+                'p_ttl' => Session::ttl(),
             ]);
         } catch (Throwable $exception) {
             error_log('Session write failed: ' . $exception::class);

@@ -79,7 +79,9 @@
         let visible = 0;
         $$('[data-search-row]', target).forEach(row => {
             const text = row.textContent.toLowerCase(), values = (row.dataset.filterValue || text).toLowerCase();
-            const matches = queries.every(query => text.includes(query)) && selections.every(filter => filter.key ? (row.dataset[filter.key] || '').toLowerCase() === filter.value : (row.hasAttribute('data-filter-value') ? values === filter.value : text.includes(filter.value)));
+            const matches = queries.every(query => text.includes(query)) && selections.every(filter => filter.key ? (row.dataset[filter.key] || '').toLowerCase() === filter.value : (row.hasAttribute('data-filter-value') ? values === filter.value : text.includes(filter.value)))
+                // data-filter-only rows (such as cancelled orders) stay out of "All" and appear only when their own value is chosen.
+                && (!row.hasAttribute('data-filter-only') || selections.some(filter => !filter.key && values === filter.value));
             row.hidden = !matches;
             row.dataset.filtered = String(!matches);
             if (matches) visible++;
@@ -89,13 +91,18 @@
         const empty = wrapper ? $('[data-empty]', wrapper) : null;
         if (empty) { empty.hidden = visible !== 0; empty.classList.toggle('hidden', visible !== 0); }
     };
-    // Label each cell with its column header so phones can show rows as stacked cards.
-    $$('table.data-table').forEach(table => {
-        const heads = $$('thead th', table).map(th => th.textContent.trim());
-        $$('tbody tr', table).forEach(row => [...row.cells].forEach((cell, i) => { if (!cell.dataset.label && heads[i]) cell.dataset.label = heads[i]; }));
-        table.dataset.cards = '';
-    });
-    $$('[data-search],[data-filter-target]').forEach(input => filter(input.dataset.search || input.dataset.filterTarget));
+    // Label each cell with its column header so phones can show rows as stacked cards; apply the current filters.
+    // Runs again after a background refresh swaps the page content (live.js fires 'hydro:refreshed').
+    const enhance = () => {
+        $$('table.data-table').forEach(table => {
+            const heads = $$('thead th', table).map(th => th.textContent.trim());
+            $$('tbody tr', table).forEach(row => [...row.cells].forEach((cell, i) => { if (!cell.dataset.label && heads[i]) cell.dataset.label = heads[i]; }));
+            table.dataset.cards = '';
+        });
+        $$('[data-search],[data-filter-target]').forEach(input => filter(input.dataset.search || input.dataset.filterTarget));
+    };
+    enhance();
+    document.addEventListener('hydro:refreshed', enhance);
     document.addEventListener('input', event => {
         const input = event.target;
         if (input.matches('[name="password"],[name="confirm_password"]')) $$('[name="password"],[name="confirm_password"]', input.form).forEach(field => field.setCustomValidity(''));

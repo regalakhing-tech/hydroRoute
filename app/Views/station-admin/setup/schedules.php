@@ -114,4 +114,23 @@ if ($closure['cancelled_at'] === null || $cancelReplay):
 <?php endforeach ?>
 <?php if (!empty($day['notice'])): ?><p class="text-sm"><?= U::e((string) $day['notice']) ?></p><?php endif ?>
 </article><?php endforeach ?></div></section>
+<?php try {
+    $capacity = App\Services\Workspace::get()->load(static fn (App\Services\Workspace $w): array => $w->call('get_capacity_days', ['p_station_id' => $w->stationId()]));
+} catch (RuntimeException) {
+    $capacity = ['error' => 'Refill limits could not be loaded. Please refresh the page.'];
+} ?>
+<section class="panel space-y-4 p-4 md:p-5" id="refill-limits">
+<?= U::title('Daily refill limits', 'bottle') ?>
+<?php if (isset($capacity['error'])): ?><p role="alert" class="text-sm text-muted"><?= U::e($capacity['error']) ?></p><?php else: ?>
+<p class="text-sm text-muted">Station default: <strong class="text-ink"><?= $capacity['default_limit'] === null ? 'no limit' : U::e((string) $capacity['default_limit']) . ' refills a day' ?></strong> (change it in Order rules). Set a different limit for one date, such as a holiday or low stock. Leave the limit blank to use the default again. Lowering a limit never cancels orders already booked.</p>
+<form method="post" action="/station-admin/schedules/capacity" class="grid gap-3 sm:grid-cols-3 sm:items-end">
+<input type="hidden" name="_token" value="<?= U::e(App\Core\Session::csrfToken()) ?>"><input type="hidden" name="request_key" value="<?= U::e(App\Services\StationSetup::requestKey()) ?>">
+<?= U::select('Date', 'service_date', array_column(array_map(static fn (array $d): array => [$d['date'], (new DateTimeImmutable($d['date']))->format('D, M j')], $capacity['days'] ?? []), 1, 0), '', ['id' => 'capacity-date']) ?>
+<?= $field('Refill limit (blank = default)', 'gallon_limit', '', 'number', ['min' => 0, 'max' => 100000, 'step' => 1, 'id' => 'capacity-limit']) ?>
+<?= $save('Save date limit') ?></form>
+<div class="overflow-x-auto"><table class="data-table" data-cards><thead><tr><th>Date</th><th>Limit</th><th>Booked</th><th>Left</th></tr></thead><tbody>
+<?php foreach ($capacity['days'] ?? [] as $d): $left = $d['limit'] === null ? null : max((int) $d['limit'] - (int) $d['booked'], 0); ?>
+<tr><td data-label="Date"><?= U::e((new DateTimeImmutable($d['date']))->format('D, M j')) ?></td><td data-label="Limit"><?= $d['limit'] === null ? 'No limit' : U::e((string) $d['limit']) ?><?= !empty($d['override']) ? ' ' . U::badge('This date only', 'blue') : '' ?></td><td data-label="Booked"><?= (int) $d['booked'] ?></td><td data-label="Left"><?= $left === null ? '—' : ($left === 0 ? U::badge('Full', 'amber') : (string) $left) ?></td></tr>
+<?php endforeach ?></tbody></table></div>
+<?php endif ?></section>
 </div>

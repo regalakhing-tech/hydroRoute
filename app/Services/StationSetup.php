@@ -21,7 +21,7 @@ final class StationSetup
     public const FIELDS = [
         'profile' => ['name','contact_name','phone','email','address','barangay_id','description'],
         'location' => ['latitude','longitude'], 'serviceAreas' => ['barangay_ids'],
-        'settings' => ['max_order_units','max_distance_km','booking_days','duplicate_minutes','overdue_minutes','institution_bonus_enabled','urgency_asap','urgency_soon','urgency_later','urgency_immediate_minutes','urgency_soon_minutes','aging_interval_minutes','aging_points','aging_cap','institution_bonus'],
+        'settings' => ['max_order_units','max_distance_km','booking_days','duplicate_minutes','overdue_minutes','institution_bonus_enabled','urgency_asap','urgency_soon','urgency_later','urgency_immediate_minutes','urgency_soon_minutes','aging_interval_minutes','aging_points','aging_cap','institution_bonus','batch_capacity_load_units','daily_gallon_limit','customer_cancel_minutes'],
         'fees' => ['bands','max_distance_km'],
         'product' => ['product_id','name','pack_text','description','image_key','price','returnable','load_units','active'],
         'hours' => ['windows','confirm_closed'],
@@ -141,10 +141,16 @@ final class StationSetup
                 case 'settings':
                     $payload = [];
                     foreach (self::FIELDS['settings'] as $field) {
+                        // Forms from before these rules existed omit them; the database then keeps the stored values.
+                        if (in_array($field, ['batch_capacity_load_units','daily_gallon_limit','customer_cancel_minutes'], true) && !array_key_exists($field, $input)) continue;
                         $payload[$field] = match ($field) {
                             'institution_bonus_enabled' => self::boolean($input[$field] ?? '0', $field),
                             'max_distance_km' => self::decimal($input[$field] ?? null, $field, 0.001, 1000),
                             'booking_days' => self::integer($input[$field] ?? null, $field, 1, 7),
+                            'batch_capacity_load_units' => self::integer($input[$field] ?? null, $field, 1, 500),
+                            // Blank means no daily limit.
+                            'daily_gallon_limit' => self::text($input, $field, 6) === '' ? null : self::integer(trim((string) $input[$field]), $field, 0, 100000),
+                            'customer_cancel_minutes' => self::integer($input[$field] ?? null, $field, 1, 1440),
                             default => self::integer($input[$field] ?? null, $field, in_array($field, ['max_order_units','duplicate_minutes','overdue_minutes','urgency_immediate_minutes','urgency_soon_minutes','aging_interval_minutes'], true) ? 1 : 0, 1000000),
                         };
                     }

@@ -3,11 +3,34 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Core\Response;
+use App\Services\CurrentUser;
+use App\Services\Gateway;
+use App\Services\Geocoder;
+use App\Services\SignupVerification;
+use DateTimeImmutable;
+use InvalidArgumentException;
 
 /** Station admin order operations: queue steps, cancellation, pickups, cash, reviews, dispatch, trips, customers and riders. */
 final class StationOpsController extends LiveController
 {
     private const ROLE = 'station-admin';
+
+    public function __construct(Gateway $db, CurrentUser $current, private readonly ?Geocoder $geocoder = null)
+    {
+        parent::__construct($db, $current);
+    }
+
+    /** GET /station-admin/settings/reverse?lat=&lng=: street, barangay candidates and landmark for the station pin (coordinates only are sent). */
+    public function reverse(): Response
+    {
+        return $this->json(self::ROLE, function (): array {
+            $lat = filter_var($_GET['lat'] ?? null, FILTER_VALIDATE_FLOAT);
+            $lng = filter_var($_GET['lng'] ?? null, FILTER_VALIDATE_FLOAT);
+            if ($lat === false || $lng === false || $lat < 10.584854 || $lat > 10.746484 || $lng < 121.961241 || $lng > 122.07373) throw new InvalidArgumentException('outside');
+            if ($this->geocoder === null) return ['ok' => false, 'error_code' => 'unavailable'];
+            return ['ok' => true, 'data' => $this->geocoder->reverse($lat, $lng)];
+        });
+    }
 
     public function start(): Response { return $this->step('start_preparation', 'Preparation started.'); }
 
@@ -90,11 +113,32 @@ final class StationOpsController extends LiveController
 
     public function saveRider(): Response
     {
-        return $this->mutate(self::ROLE, '/station-admin/deliveries', 'save_rider',
-            static fn (): array => ['p_rider_id' => self::uuid($_POST['rider_id'] ?? null), 'p_payload' => ['vehicle' => self::input('vehicle', 40),
-                'plate_number' => self::input('plate_number', 20), 'capacity' => self::count($_POST['capacity'] ?? null, 100), 'enabled' => isset($_POST['enabled']) ? 'true' : 'false'],
-                'p_expected_version' => self::version($_POST['expected_version'] ?? null), 'p_request_key' => self::uuid($_POST['request_key'] ?? null)],
-            static fn (): array => ['success', 'Rider vehicle saved.', null]);
+        $back = ($_POST['back'] ?? '') === '/station-admin/drivers' ? '/station-admin/drivers' : '/station-admin/deliveries';
+        return $this->mutate(self::ROLE, $back, 'save_rider',
+            static function (): array {
+                $payload = ['vehicle' => self::input('vehicle', 40), 'plate_number' => self::input('plate_number', 20),
+                    'capacity' => self::count($_POST['capacity'] ?? null, 100), 'enabled' => isset($_POST['enabled']) ? 'true' : 'false'];
+                // The Drivers page also edits the name and phone; the vehicle form on Deliveries sends neither.
+                if (array_key_exists('full_name', $_POST)) $payload['full_name'] = self::input('full_name', 120);
+                if (array_key_exists('phone', $_POST)) $payload['phone'] = SignupVerification::phone($_POST['phone']) ?? throw new InvalidArgumentException('phone');
+                return ['p_rider_id' => self::uuid($_POST['rider_id'] ?? null), 'p_payload' => $payload,
+                    'p_expected_version' => self::version($_POST['expected_version'] ?? null), 'p_request_key' => self::uuid($_POST['request_key'] ?? null)];
+            },
+            static fn (): array => ['success', 'Driver details saved.', null]);
+    }
+
+    /** One date's refill limit; a blank limit clears the override so the station default applies. */
+    public function saveCapacityDay(): Response
+    {
+        return $this->mutate(self::ROLE, '/station-admin/schedules', 'save_capacity_day',
+            static function (array $user): array {
+                $date = is_string($_POST['service_date'] ?? null) ? $_POST['service_date'] : '';
+                if (preg_match('/^\d{4}-\d{2}-\d{2}$/D', $date) !== 1 || DateTimeImmutable::createFromFormat('!Y-m-d', $date)?->format('Y-m-d') !== $date) throw new InvalidArgumentException('service_date');
+                $limit = is_string($_POST['gallon_limit'] ?? null) ? trim($_POST['gallon_limit']) : '';
+                return ['p_station_id' => self::station($user), 'p_service_date' => $date, 'p_gallon_limit' => $limit === '' ? null : (int) self::count($limit, 100000),
+                    'p_request_key' => self::uuid($_POST['request_key'] ?? null)];
+            },
+            static fn (array $d): array => ['success', $d['gallon_limit'] === null ? 'The default refill limit applies to that date again.' : 'Refill limit saved for that date.', null]);
     }
 
     public function readNotification(): Response

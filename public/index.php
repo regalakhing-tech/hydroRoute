@@ -34,6 +34,7 @@ try {
         '/assets/vendor/leaflet/images/layers-2x.png' => ['file' => __DIR__ . '/assets/vendor/leaflet/images/layers-2x.png', 'type' => 'image/png'],
         '/assets/js/live.js' => ['file' => __DIR__ . '/assets/js/live.js', 'type' => 'text/javascript; charset=utf-8'],
         '/assets/js/live-chat.js' => ['file' => __DIR__ . '/assets/js/live-chat.js', 'type' => 'text/javascript; charset=utf-8'],
+        '/assets/js/locate.js' => ['file' => __DIR__ . '/assets/js/locate.js', 'type' => 'text/javascript; charset=utf-8'],
         '/assets/data/hamtic-barangays.json' => ['file' => __DIR__ . '/assets/data/hamtic-barangays.json', 'type' => 'application/json; charset=utf-8'],
         '/assets/images/hero-water.webp' => ['file' => __DIR__ . '/assets/images/hero-water.webp', 'type' => 'image/webp'],
         '/assets/images/water-jug.webp' => ['file' => __DIR__ . '/assets/images/water-jug.webp', 'type' => 'image/webp'],
@@ -71,6 +72,15 @@ try {
     }
 
     $response->send($method === 'HEAD');
+    // Queued order-update emails go out after a successful form post, once the page is on its way (best effort;
+    // failures stay queued and retry). A scheduler can also call POST /jobs/email or scripts/send-emails.php.
+    // Only after a confirmed database write in a real (non-preview) app: rejected, CSRF-failed or preview posts send nothing.
+    if ($method === 'POST' && App\Services\EmailOutbox::$due && empty($config['app']['preview'])) {
+        if (function_exists('fastcgi_finish_request')) fastcgi_finish_request();
+        // shortcut: on hosts that hold the response until the script ends (Vercel), this adds one email's send time to
+        // the post; schedule POST /jobs/email every minute and lower this to 0 if that delay matters.
+        App\Services\EmailOutbox::fromConfig(new App\Services\SupabaseClient($config['supabase']), $config)?->flush(1);
+    }
 } catch (Throwable $exception) {
     // Do not print exception messages that could contain configuration or data.
     error_log('Application request failed: ' . $exception::class . ' at '

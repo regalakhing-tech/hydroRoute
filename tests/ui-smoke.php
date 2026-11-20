@@ -38,6 +38,15 @@ foreach (['/assets/css/app.css'=>'text/css','/assets/js/app.js'=>'javascript','/
     @file_get_contents($base . $path, false, stream_context_create(['http'=>['ignore_errors'=>true]]));
     if (!str_contains(implode(' ', $http_response_header ?? []), $type)) $failures[] = "Wrong asset type: $path";
 }
+// Every script and stylesheet any view references (including live-only pages) must be served by the asset allowlist.
+$referenced = [];
+foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator(dirname(__DIR__) . '/app/Views')) as $file) {
+    if ($file->isFile() && preg_match_all('#(?:src|href)="(/assets/[^"?]+\.(?:js|css))"#', (string) file_get_contents($file->getPathname()), $m)) $referenced += array_flip($m[1]);
+}
+foreach (array_keys($referenced) as $path) {
+    @file_get_contents($base . $path, false, stream_context_create(['http'=>['ignore_errors'=>true]]));
+    if (!str_contains($http_response_header[0] ?? '', '200')) $failures[] = "Referenced asset not served: $path";
+}
 if ($failures) { fwrite(STDERR, implode("\n", $failures) . "\n"); exit(1); }
 echo count($paths) . " pages passed; " . count($links) . " local links/assets passed; registry privacy and asset boundary checks passed.\n";
 
